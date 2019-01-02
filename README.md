@@ -1,4 +1,4 @@
-People wishing to submit LIPs, first should propose their idea or document to the [https://groups.google.com/forum/#!forum/litecoin-dev] mailing list. After discussion, please open a PR. After copy-editing and acceptance, it will be published here.
+People wishing to submit LIPs, first should propose their idea or document to the [Litecoin-Dev](https://groups.google.com/forum/#!forum/litecoin-dev) mailing list. After discussion, please open a PR. After copy-editing and acceptance, it will be published here.
 
 We are fairly liberal with approving LIPs, and try not to be too involved in decision making on behalf of the community. The exception is in very rare cases of dispute resolution when a decision is contentious and cannot be agreed upon. In those cases, the conservative option will always be preferred.
 
