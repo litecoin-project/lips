@@ -375,7 +375,7 @@ However, LIPs predating the acceptance of this LIP were allowed under other term
 
 ===Rationale===
 
-LIP 1 allowed the Open Publication License or releasing into the public domain; was this insufficient?
+Is Open Publication License or releasing into the public domain insufficient?
 
 * The OPL is generally regarded as obsolete, and not a license suitable for new publications.
 * Many are unfamiliar with the OPL terms, and may just prefer to use the public domain rather than license under uncertain terms.
@@ -387,7 +387,7 @@ Why are there software licenses included?
 * Some LIPs, especially consensus layer, may include literal code in the LIP itself which may not be available under the exact license terms of the LIP.
 * Despite this, not all software licenses would be acceptable for content included in LIPs.
 
-Why is Public Domain no longer acceptable for new LIPs?
+Why is Public Domain not acceptable for new LIPs?
 
 * In some jurisdictions, public domain is not recognised as a legitimate legal action, leaving the LIP simply copyrighted with no redistribution or modification allowed at all.
 
