@@ -2,7 +2,7 @@
   LIP: 
   Title: LIP Purpose and Guidelines
   Author: Andrew Yang <ecurrencyhodler@gmail.com>
-  Comments-URI: https://github.com/litecoin/lips/wiki/Comments:LIP-0001
+  Comments-URI: https://github.com/litecoin-project/lips/wiki/Comments:LIP-0001
   Status: Draft
   Type: Process
   Created: 2019-01-02
@@ -36,7 +36,7 @@ It also helps to make sure the idea is applicable to the entire community and no
 
 Once the champion has asked the Litecoin community as to whether an idea has any chance of acceptance, a draft LIP should be presented to the [https://groups.google.com/forum/#!forum/litecoin-dev Litecoin development mailing list].
 This gives the author a chance to flesh out the draft LIP to make it properly formatted, of high quality, and to address additional concerns about the proposal.
-Following a discussion, the proposal should be submitted to the [https://github.com/litecoin/lips LIPs git repository] as a pull request.
+Following a discussion, the proposal should be submitted to the [https://github.com/litecoin-project/lips LIPs git repository] as a pull request.
 This draft must be written in LIP style as described below, and named with an alias such as "Lip-johndoe-infinitebitcoins" until the editor has assigned it a LIP number (authors MUST NOT self-assign LIP numbers).
 
 LIP authors are responsible for collecting community feedback on both the initial idea and the LIP before submitting it for review. However, wherever possible, long open-ended discussions on public mailing lists should be avoided. Strategies to keep the discussions efficient include: setting up a separate SIG mailing list for the topic, having the LIP author accept private comments in the early design phases, setting up a wiki page or git repository, etc. LIP authors should use their discretion here.
@@ -79,7 +79,7 @@ For each new LIP that comes in an editor does the following:
 
 If the LIP isn't ready, the editor will send it back to the author for revision, with specific instructions.
 
-Once the LIP is ready for the repository it should be submitted as a "pull request" to the [https://github.com/litecoin/Lips LIPs git repository] where it may get further feedback.
+Once the LIP is ready for the repository it should be submitted as a "pull request" to the [https://github.com/litecoin-project/lips LIPs git repository] where it may get further feedback.
 
 The LIP editor will:
 
@@ -271,7 +271,7 @@ If a LIP is not yet completed, reviewers should instead post on the applicable d
 Some LIPs receive exposure outside the development community prior to completion, and other LIPs might not be completed at all. To avoid a situation where critical LIP reviews may go unnoticed during this period, reviewers may, at their option, still post their review on the comments page, provided they first post it to the mailing list and plan to later remove or revise it as applicable based on the completed version. Such revisions should be made by editing the previous review and updating the timestamp. Reviews made prior to the complete version may be removed if they are no longer applicable and have not been updated in a timely manner (eg, within one month).
 
 Pages must be named after the full LIP number (eg, "LIP 0001") and placed in the "Comments" namespace.
-For example, the link for LIP 1 will be https://github.com/litecoin/lips/wiki/Comments:LIP-0001 .
+For example, the link for LIP 1 will be https://github.com/litecoin-project/lips/wiki/Comments:LIP-0001 .
 
 Comments posted to this wiki should use the following format:
 
@@ -292,7 +292,7 @@ Summary tones may be chosen from the following, but this LIP does not intend to 
 For example, the preamble to LIP 1 might be updated to include the line:
 
     Comments-Summary: No comments yet.
-    Comments-URI: https://github.com/litecoin/lips/wiki/Comments:LIP-0001
+    Comments-URI: https://github.com/litecoin-project/lips/wiki/Comments:LIP-0001
                   https://some-other-wiki.org/LIP_1_Comments
 
 These fields must follow the "Discussions-To" header defined in LIP 1 (if that header is not present, it should follow the position where it would be present; generally this is immediately above the Status header).
