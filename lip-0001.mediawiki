@@ -1,5 +1,5 @@
 <pre>
-  LIP: 
+  LIP: 1
   Title: LIP Purpose and Guidelines
   Author: Andrew Yang <ecurrencyhodler@gmail.com>
   Comments-URI: https://github.com/litecoin-project/lips/wiki/Comments:LIP-0001
