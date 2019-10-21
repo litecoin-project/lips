@@ -1,0 +1,125 @@
+<pre>
+  LIP: 2
+  Layer: Consensus (soft fork)
+  Title: Extension Blocks (Consensus layer)
+  Author: Andrew Yang <ecurrencyhodler@gmail.com>
+	David Burkett <davidburkett38@gmail.com>
+	Charlie Lee <coblee@litecoin.org>
+  Comments-Summary: No comments yet.
+  Comments-URI: https://github.com/litecoin/lips/wiki/Comments:LIP-0002
+  Status: 
+  Type: Standards Track
+  Created: 
+  License: PD
+</pre>
+
+==Abstract==
+
+This LIP introduces extension blocks (EB) as a way to implement new protocols to Litecoin without altering any consensus rules. Extension blocks are created through peg-in transactions and an integrating transaction, a term coined by Johnson Lau in his original [https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2017-January/013490.html](proposal). Litecoin can also be moved out from the EB to the canonical chain through peg-out transactions. 
+
+Extension blocks run alongside the main chain’s canonical blocks at the same interval of 2.5 minutes on average. 
+
+EB can be soft forked in via version bits. Old clients will only see the coins anchored in the integrating transaction but will not be aware of the EB side.
+
+==Motivation==
+
+Our primary motivation behind EB is to implement opt-in MimbleWimble. This is something that is currently not possible through a traditional soft-fork because MimbleWimble is not script-based. However, there is also an opportunity to lay the groundwork to implement alternative proposals using EB as well.
+
+==Design==
+
+Extension blocks create a side-chain like layer alongside canonical Litecoin blocks in which a miner will commit to the merkle root of an additional block of transactions.
+
+They are created through peg-in transactions where coins on the canonical chain is transitioned to the EB. EBs must also keep their own UTXO set. In the canonical chain, we need an integrating transaction at the end of every block. Finally, coins can also be moved out of the EB through peg-out transactions.
+
+==Specification==
+This section will discuss the consensus rules for implementing EB.
+
+===New Witness Program (ExtVer)===
+
+A new witness program will be implemented. Addresses using this new witness program will have a similar address format described in BIP141’s P2WPKH addresses. However, it will have a new version number ExtVer to specify this new witness program.
+
+Transactions sent to addresses with version ExtVer will serve as a signal to miners to collect and then spend these peg-in transactions into the integration transaction, which will be described below. In light of this, peg-out transactions must not be sent to an address created with this witness program.
+
+=== Extension Addresses (ExtAddr)===
+
+A special anyone-can-spend bech32 address will be created every block with the new witness program introduced above. These addresses will be called extension addresses (ExtAddr). For ExtAddr, the witness program, <code>eb_commitment</code>, is 2 to 40 bytes, where <code>eb_commitment</code> commits to the EB corresponding to the canonical block. This ensures that the canonical block commits to the corresponding EB block via the ExtAddr.
+
+At the end of every block, the number of coins held in this block’s ExtAddr will correspond exactly to the number of coins in the EB. As coins move in and out of the EB, the ExtAddr will change every block and will be chained together.
+
+===Peg-In Transactions===
+
+A peg-in occurs when coins are sent from the canonical block to the extension block.
+
+To execute a peg-in, users send coins to a bech32 address using the new witness program that commits to a corresponding EB coinbase transaction. The EB coinbase transaction creates the same amount of coins on the extension blockchain. To lock up the corresponding coins on the canonical blockchain, these coins will be sent to the ExtAddr of this block. This is done in the integration transaction explained below.
+
+A peg-in transaction on the canonical blockchain will be considered invalid if there doesn’t exist the corresponding coinbase transaction on the extension blockchain. This is to make sure coins aren’t accidentally destroyed.
+
+===Peg-Out Transactions===
+
+A peg-out occurs when coins are sent from the extension block to the canonical block.
+
+To execute a peg-out, users will create a peg-out transaction on the extension blockchain. This peg-out transaction must commit to a Litecoin address where the same amount of coins will be sent to on the canonical blockchain. The peg-out transaction in the EB will destroy those coins from the EB side. On the canonical blockchain, the same amount of coins will be sent to the commited Litecoin address. This is done in the integration transaction explained below.
+
+Peg-out outputs on the canonical blockchain must be locked for a number of blocks.  This is to ensure that child transactions cannot be created immediately. Since peg-out transactions share similar properties to coinbase transactions in that the transaction hash will change if there’s a reorg, chaining transaction on peg-out transaction would result in invalid transactions after a reorg and lead to potential loss of money.
+
+===Integrating Transaction (ExtTxn)===
+
+The integrating transaction (ExtTxn) handles both the peg-ins to the EB and the peg-outs from the EB. It consists of X+1 inputs and Y+1 outputs where X is the number of peg-ins and Y is the number of peg-outs. The first input is always a spend from the previous block’s ExtAddr UTXO and the first output is sending remaining coins to the new ExtAddr for the block. The special anyone-can-spend address will at all times only have one UTXO that will be spent by the next block’s ExtTxn. The integrating transaction must be the last transaction in the block as it will be spending outputs created in the same block.
+
+Note that the first ever ExtTxn after activation will only have X inputs, as there won’t be a previous block ExtAddr UTXO to spend. If in any block, all the coins are pulled out of the EB, the ExtTxn will still create an output of 0 coins to the ExtAddr. And of course if that happens, the next block’s ExtTxn transaction will spend that output of 0 coins. 
+
+====ExtTxn Inputs====
+
+For each block, the miner will collect all the transactions sending coins to a version ExtVer address (i.e. peg-in transactions) and then spend them immediately in the ExtTxn. The order of the ExtTxn inputs must match the order of the peg-in transactions in the block.
+
+====ExtTxn Outputs====
+
+For each block, the miner will collect all the peg-out transactions in the EB and create corresponding outputs in the ExtTxn sending coins out on the canonical side. The order of the ExtTxn outputs must match the order of the peg-out transactions.
+
+Note that it is not possible for a peg-out transaction to send coins to a version ExtVer address. In other words, one cannot peg-out to a peg-in address.
+
+====ExtTxn Fees====
+
+All the fees in the EB will be collected on the canonical side as fees on the ExtTxn. This is how the fees of the EB are paid out to the miners. 
+
+===Extension Block Size===
+
+The extension block can be used to increase the effective block size of the blockchain.
+
+===Backward Compatibility===
+
+Extension Blocks(EB) function like a soft fork in that older software do not need to upgrade. But non-upgraded nodes i.e. non-EB nodes, will not be able to validate any transactions within the EB. Nevertheless, wallets should treat "anyone-can-spend" scripts with care and non-upgraded nodes are strongly encouraged to upgrade.
+
+====What a non-upgraded, non-EB node can do====
+
+It can validate regular Litecoin transactions. It can also validate the amount of LTC peg-in and peg-out of the EB on the canonical side.
+
+====What a non-upgraded, non-EB node can not do====
+
+It can not validate transactions in the EB. This means it can not validate EB to EB transactions. It also can not validated peg-in and peg-out transaction kernels and outputs.
+
+====What an upgraded EB node can do====
+
+It can validate regular Litecoin transactions. It can validate peg-in and peg-out transactions. It can validate EB to EB transactions.
+
+==Deployment==
+
+This will be activated with [BIP8](https://github.com/bitcoin/bips/blob/master/bip-0008.mediawiki). The soft fork will be activated 1 year from the day the implementation is released. And miners will be able to activate it early with a 75% signaling threshold.
+
+==Credits==
+
+Special thanks to Johnson Lau for originating the idea of extension blocks. 
+
+==References==
+
+https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki#Block_size
+
+https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2017-January/013490.html
+
+https://eprint.iacr.org/2017/1066.pdf
+
+https://github.com/tothemoon-org/extension-blocks/blob/master/spec.md#specification
+
+==Copyright==
+
+This document is placed in the public domain.
