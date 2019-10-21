@@ -15,7 +15,7 @@
 
 ==Abstract==
 
-This LIP introduces extension blocks (EB) as a way to implement new protocols to Litecoin without altering any consensus rules. Extension blocks are created through peg-in transactions and an integrating transaction, a term coined by Johnson Lau in his original [https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2017-January/013490.html](proposal). Litecoin can also be moved out from the EB to the canonical chain through peg-out transactions. 
+This LIP introduces extension blocks (EB) as a way to implement new protocols to Litecoin without altering any consensus rules. Extension blocks are created through peg-in transactions and an integrating transaction, a term coined by Johnson Lau in his original [https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2017-January/013490.html proposal]. Litecoin can also be moved out from the EB to the canonical chain through peg-out transactions. 
 
 Extension blocks run alongside the main chain’s canonical blocks at the same interval of 2.5 minutes on average. 
 
@@ -104,7 +104,7 @@ It can validate regular Litecoin transactions. It can validate peg-in and peg-ou
 
 ==Deployment==
 
-This will be activated with [BIP8](https://github.com/bitcoin/bips/blob/master/bip-0008.mediawiki). The soft fork will be activated 1 year from the day the implementation is released. And miners will be able to activate it early with a 75% signaling threshold.
+This will be activated with [https://github.com/bitcoin/bips/blob/master/bip-0008.mediawiki BIP8]. The soft fork will be activated 1 year from the day the implementation is released. And miners will be able to activate it early with a 75% signaling threshold.
 
 ==Credits==
 
