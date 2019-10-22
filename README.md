@@ -6,5 +6,34 @@ Having a LIP here does not make it a formally accepted standard until its status
 
 Those proposing changes should consider that ultimately consent may rest with the consensus of the Litecoin users (see also: [https://en.bitcoin.it/wiki/Economic_majority economic majority]).
 
+{| class="wikitable sortable" style="width: auto; text-align: center; font-size: smaller; table-layout: fixed;"
+!Number
+!Layer
+!Title
+!Owner
+!Type
+!Status
+|- style="background-color: #ffcfcf"
+| [[lip-0001.mediawiki|1]]
+|
+| LIP Purpose and Guidelines
+| Andrew Yang
+| Process
+| Draft
+|- style="background-color: #cfffcf"
+| [[lip-0002.mediawiki|2]]
+| Consensus (soft fork)	
+| Extension Blocks
+| Andrew Yang, David Burkett, Charlie Lee
+| Standard
+| Draft
+|-
+| [[lip-0003.mediawiki|3]]
+| Consensus (soft fork)	
+| MimbleWimble via Extension Blocks
+| Andrew Yang, David Burkett, Charlie Lee
+| Standard
+| Draft
+|}
 
 <!-- IMPORTANT!  See the instructions at the top of this page, do NOT JUST add LIPs here! -->
