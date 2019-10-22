@@ -1,0 +1,269 @@
+<pre>
+  LIP: 003
+  Layer: Consensus (soft fork)
+  Title: MimbleWimble via Extension Blocks (Consensus layer)
+  Author: Andrew Yang <ecurrencyhodler@gmail.com>
+	David Burkett <davidburkett38@gmail.com>
+	Charlie Lee <coblee@litecoin.org>
+  Comments-Summary: No comments yet.
+  Comments-URI: https://github.com/litecoin/lips/wiki/Comments:LIP-0003
+  Status: Draft
+  Type: Standards Track
+  Created: 2019-10-20
+  License: PD
+</pre>
+
+==Abstract==
+
+This LIP introduces opt-in MimbleWimble (MW) as a new transaction format through extension blocks (EB). Extension blocks run alongside main chain canonical blocks at the same interval of 2.5 minutes on average. Inside the EB is where MW transactions occur. Users can opt-in to using MW by moving their coins in and out of the EB through an integrating transaction.
+
+To transition coins from the canonical side into the EB, it must be pegged-in. Coins on the canonical side are sent to a specially marked anyone-can-spend address. This results in the redemption of the equivalent amount of MW coins inside the EB. Once inside, MW transactions can occur. Coins in the EB can also be pegged-out back to the canonical blockchain and will be sent out of this special address. This special address will hold all the coins that represents coins on the extension chain.
+
+MW with EB can be softforked in via version bits. Old clients will only see the coins ending up in the anyone-can-spend address and they will not be aware of the EB side.
+
+Finally, MimbleWimble will have a switch commitment to Elgamal which can be activated via miner signaling once quantum computers are deemed to be a viable threat.
+
+==Motivation==
+
+Due to the nature of a transparent ledger, transaction history can be publicly traced. This hinders Litecoin’s fungibility in several ways. Personal identifiable information collected from IP address, exchanges, or merchants can be leaked then tied to your addresses. Also services, such as chain analysis, provide risk-scores based on whether or not any addresses that they have blacklisted appear in its transactional history. This results in some businesses treating these coins as “tainted” and then sending them back to the owner, or worse yet, shutting down their account. This hinders Litecoin’s functional fungibility in a government regulated merchant world.
+
+One solution to this problem is to create private transactions i.e. hiding the amount sent within a transaction. Not only does this provide financial privacy, it also allows for plausible deniability.  
+However, it is possible for transactions to be selectively disclosed by proving knowledge of the blinding factor.
+
+Another disadvantage of these types of ledgers is that validating them requires processing the entire history of transactions. This means that on-boarding new users requires a long process of initial download and validation.
+
+We would prefer the burden on new users to be minimal. This proposal would allow making the initial validation burden in the extension block grow roughly with the numbers of users (more precisely, it would grow with the UTXO set), as opposed to having it grow with the transaction history.
+
+==Design==
+
+In this section, we will briefly discuss key aspects of MimbleWimble (MW) that will be relevant later on in the proposal. We also provide a rationale for using extension blocks to implement MW. A prerequisite to understanding this proposal is to firmly grasp the current [https://github.com/mimblewimble/grin/blob/master/doc/intro.md  MimbleWimble] protocol. 
+
+===MimbleWimble (MW)===
+
+Within the MimbleWimble protocol, Transaction Kernels and Transaction Cut-Through are two key components that we will leverage. 
+
+====Transaction Kernel====
+
+A transaction kernel consists of three main parts:
+
+#Kernel excess - The hashed difference between the spender's private key and receivers private key which is then used to bring the Pedersen Commitment to zero.
+#Transaction signature - which uses the kernel excess as a public key.
+#Transaction fees.
+
+The standard size of a MW transaction kernel is 102 bytes and can be broken down into the following categories:
+
+#Type - 1 byte
+#Fee - 4 bytes
+#Commitment - 33 bytes
+#Signature - 64 bytes
+
+Transaction kernels will be a key concept later on in the proposal.  
+
+====Transaction Cut-Through====
+
+When a Litecoin node is initialized and is syncing for the first time, it must sync up to the current UTXO set. With normal Litecoin transactions, computing and verifying the current UTXO set requires processing the entire Litecoin history. However, for MW transactions it's possible to verify just the MW UTXO set, without verifying their history.
+
+For example, if there are two identical transactions from A to B and then B to C, then the history of the intermediary transactions can be “cut” resulting in a merged transaction from A to C. In this way, only the current UTXO state is needed and there is no need to store any addresses in the blockchain.  
+
+====Rationale for MimbleWimble====
+
+Choosing a privacy protocol was not an easy task. Each had their trade offs, most notably their transaction sizes.
+
+We first looked at [http://diyhpl.us/wiki/transcripts/gmaxwell-confidential-transactions/ Confidential Transactions], which was originated by Adam Back and then further developed by Gregory Maxwell. Unfortunately, CT would have been very expensive with large transaction sizes and greatly increase the growth of Litecoin’s blockchain.
+
+Next we looked at Zk-Stark. Its untrusted setup model was appealing but came with an estimated 20 kB transaction size. Zk-Snark’s was better at 800 bytes, however required a trusted setup. Pedersen Commitments and Elgamal are currently estimated at 2 kB and 2.5 kB respectively. Confidential Transactions with Bulletproofs were the most promising at 670 bytes. MW improves on this by enabling signature aggregation, further reducing validation times. It should also significantly improve Initial Block Download (IBD) times as most of the work would be validating the UTXO set, as opposed to validating the entire history.
+
+In light of this, we concluded that MW was the ideal protocol to implement for private transactions. Not only does it hide the amount being sent, the transactional history is deleted from the ledger. This increases privacy by removing linked transactions as well as mitigating the growth in the size of the blockchain.
+
+However, MW does come with its own disadvantages. For example, transactions must be built interactively. It is also not script-based which makes it impossible to implement as a typical soft-fork. This also makes private Litecoin transactions [https://github.com/lightningnetwork/lightning-rfc BOLT] incompatible and currently unsuitable for the Lightning Network being developed on top of Bitcoin and Litecoin.
+
+Fortunately, MW can be implemented without a hard fork through extension blocks.
+
+===Extension Blocks===
+
+Extension blocks (EB) create a side-chain like layer alongside canonical Litecoin blocks in which a miner will commit to the merkle root of an additional block of MW transactions. EB allow MW transactions to be “opt-in”, which means public and private transactions can exist simultaneously but be maintained separately. 
+
+====Rationale for Extension Blocks====
+
+It is possible to implement private transactions, such as [https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2016-January/012194.html Confidential Transactions], via soft-fork. This would be the least disruptive method as it would preserve script-based transactions. However, the end result would be very similar to how extension blocks would work. All transactions would have to be sent into a single "anyone-can-spend" address which non-upgraded nodes would not be able to track and audit because amounts would be obfuscated. Therefore, the only functional difference between the two methods would be that peg-in and peg-out transactions from the extension blocks are time-locked.
+
+In light of this, we decided to implement MW through EB because it enables a significantly more scalable commitment scheme in regards to blockchain size when compared to other privacy techniques.
+
+==Specification==
+
+This section will discuss the consensus rules for implementing MW through EB. This specification builds upon the extension blocks proposal detailed in [https://github.com/litecoin-project/lips/blob/master/lip-0002.mediawiki LIP-0002].
+
+===Version 9 Witness Program===
+
+This proposal will use and follow the new witness program introduced in [https://github.com/litecoin-project/lips/blob/master/lip-0002.mediawiki#new-witness-program-extver LIP-0002]. We will use version number of 0x09 for this new witness program.
+
+===Extension Addresses (HogAddr)===
+
+Extension addresses will use the version 9 witness program, with <code>eb_commitment</code> being the commitment of the corresponding MW EB block. <code>eb_commitment</code> will commit to the sum of all kernel offsets, and the roots of 2 merkle mountain ranges composed of:
+
+#MW transaction kernels from the extension block.
+#MW UTXO set from the extension block.
+
+For this proposal, extension address will be name Hogwarts addresses. (HogAddr)
+
+===Peg-In Transactions===
+
+Since the MW protocol does not have addresses, it is possible that miners can assign coins to an unintended recipient. To prevent this, the MW coinbase transaction kernel commitment will be encoded into the bech32 address. This way the peg-in transaction can be verified in the canonical Litecoin blockchain.
+
+====MimbleWimble Coin Creation====
+
+When a peg-in transaction occurs, new coins must also be introduced into the EB through MW coinbase transactions. The MW coinbase transaction’s kernel commitment is used to create the bech32 address of the peg-in transaction. Therefore, there will be one MW coinbase transaction in the EB per peg-in transaction on the canonical blockchain. There will also be no fees associated with this MW coinbase transaction.
+
+A peg-in transaction without a corresponding MW coinbase transaction is considered invalid as these transactions are basically sending coins to an unredeemable address. Therefore miners will not include them in a block and nodes will not relay them.
+
+Lastly, these newly minted coins in the EB will not be time-lock and will be immediately available to spend. In the event of a reorg, the kernel commitment will not change so the exact same peg-in transaction and MW coinbase transaction can be replayed.
+
+====Total Size of Peg-In Transaction====
+
+The total size of a peg-in transaction will be composed of the following:
+
+<pre>
+Total size = (LTC transaction + MW kernel commitment) + Peg-In MW Kernel + Extension Block Output
+</pre>
+
+The standard size of a Litecoin transaction with the MW kernel commitment is 233 bytes and can be broken down into the following categories:
+
+<pre>
+1. Regular transaction - 200 bytes
+2. Commitment - 33 bytes
+</pre>
+
+The standard size of a MW kernel for a peg-in transaction is 98 bytes and can be broken down into the following categories:
+
+<pre>
+1. Type - 1 byte
+2. Commitment - 33 bytes
+3. Signature - 64 bytes
+</pre>
+
+The standard size of an extension block output is 700 bytes, consisting of a commitment and a bulletproof/rangeproof.
+
+If we plug in these values in the formula above, we get:
+
+<pre>
+1,031 = 233 + 98 + 700
+</pre>
+
+However, the extension block output is pruned during Cut-Through leaving the remaining size of the transaction to be <code>331 bytes</code>.
+
+====Peg-In Transaction Fees====
+
+Aggregating fees for peg-in transactions will be simple as they are regular public Litecoin transactions. 
+
+===Peg-Out Transactions===
+
+For peg-out, coins in the EB must be destroyed and then sent out of HogAddr.  The recipient’s Litecoin address will be stored in the kernel of the MW peg-out transaction.  This way, peg-out address on the canonical side can be matched and verified with the Litecoin address in the MW kernels in the EB.  
+
+Peg-out outputs on the canonical blockchain must be locked for 6 blocks. More research will need to be done to determine if we need to lock it for longer.
+
+====Total Size of a Peg-Out Transaction====
+
+<pre>
+Total Fee = Batched LTC transaction + Peg-out MW kernel + Extension Block Output
+</pre>
+
+The size of a batched LTC transaction per transaction depends on how many outputs there are so it is difficult to calculate. But for reference, a batched transaction of 1 input and 5 outputs is approximately 328 bytes. Therefore the fee per transaction is approximately 66 bytes.
+
+The standard size of a MW kernel for peg-out transaction is 126 bytes and can be broken down into the following categories:
+
+<pre>
+1. Type - 1 byte
+2. Fee - 4 bytes
+3. Amount - 4 bytes
+4. LTC address - 20 bytes
+5. Commitment - 33 bytes
+6. Signature - 64 bytes
+</pre>
+The standard size of an extension block output is 700 bytes.
+
+If we plug in the values above, we get a total transaction size of:
+
+<pre>
+892 = 66 + 126 + 700 
+</pre>
+After Cut-Through, it gets pruned down to <code>292 bytes.</code>
+
+====Peg-Out Transaction Fees====
+
+MW transaction fees are already publicly visible in the kernel by design. These will simply be lumped together and then added to the integrating transaction. 
+
+===Integrating Transaction (HogEx)===
+
+Refer to [https://github.com/litecoin-project/lips/blob/master/lip-0002.mediawiki#integratin-transaction-exttxn LIP-0002]. The integration transaction for this proposal will be called the Hogwarts Express (HogEx) transaction. 
+
+====HogEx Inputs====
+
+Refer to [https://github.com/litecoin-project/lips/blob/master/lip-0002.mediawiki#exttxn-inputs LIP-0002]. For each block, the number of peg-in transactions on the canonical side must be equal to the number of MW coinbase transaction in the EB. And the order of the HogEx inputs must match the order of the peg-in transactions in the block and also the order of the MW coinbase transactions. 
+
+====HogEx Outputs====
+
+For each block, the miner will collect all the MW peg-out transactions in the EB and create corresponding outputs in the HogEx transaction sending coins out on the canonical side. The address that the coins are sent to must match the address embedded in the MW peg-out kernel commitments. The order of the HogEg outputs must match the order of the MW peg-out transactions.
+
+Note that it is not possible for a peg-out transaction to send coins to a version 0x09 address. In other words, one cannot peg-out to a peg-in address.
+
+====HogEx Fees====
+
+All the fees in the MW EB will be collected on the canonical side as fees on the HogEx transaction. This is how the fees of the EB are paid out to the miners. 
+
+===MW to MW Transactions===
+
+Once inside the extension block, MW to MW transactions will follow traditional MW protocol rules.  
+
+===Switch Commitment to Elgamal===
+
+We will implement [https://lists.launchpad.net/mimblewimble/msg00479.html switch commitments to elgamal] as a safety measure against the threat of quantum computers. More discussion must be had around its specific implementation and activation.
+
+====Rationale for Switch Commitments to Elgamal====
+
+One thing we considered carefully was the security of the commitment schemes used in private transactions in a post-quantum computing world. Commitment schemes theoretically can not be perfectly hiding and perfectly blinding at the same time. If a commitment scheme is perfectly binding, then all past private transactions can be revealed. If it is perfectly hiding, then supply inflation becomes a threat. MW is perfectly hiding but not perfectly binding.
+
+In light of this, we have decided to create a switch commitment to transition MW to elgamal, a perfectly binding commitment scheme. This ensures that all the transactions leading up to the commitment switch will remain hidden because MW is perfectly hiding. However in the event of a QC threat, the Litecoin community can push to switch to elgamal. Although elgamal’s privacy will be broken, it will protect against supply inflation. This can also provide the community some time until more efficient and effective solutions are discovered.
+
+===Extension Block Size===
+
+More discussion must be had around what the extension block size should be.
+
+===Backward Compatibility===
+
+Extension Blocks(EB) function like a soft fork in that older software do not need to upgrade. But non-upgraded nodes i.e. non-EB nodes, will not be able to validate any transactions within the EB. Nevertheless, wallets should treat "anyone-can-spend" scripts with care and non-upgraded nodes are strongly encouraged to upgrade.
+
+====What a non-upgraded, non-MW node can do====
+
+It can validate regular Litecoin transactions. It can also validate the amount of LTC peg-in and peg-out of the EB on the canonical side.
+
+====What a non-upgraded, non-MW node can not do====
+
+It can not validate MW transactions in the EB. This means it can not validate MW to MW transactions in the EB. It also can not validated peg-in and peg-out transaction kernels and outputs.
+
+====What an upgraded MW node can do====
+
+It can validate regular Litecoin transactions. It can validate peg-in and peg-out transactions. It can validate MW to MW transactions in the extension block.
+
+==Deployment==
+
+This will be activated with [https://github.com/bitcoin/bips/blob/master/bip-0008.mediawiki BIP8]. The soft fork will be activated 1 year from the day the implementation is released. And miners will be able to activate it early with a 75% signaling threshold.
+
+==Credits==
+
+Special thanks to Johnson Lau for originating the idea of extension blocks. Also thanks to Tom Elvis Jedusor for devising the original MimbleWimble protocol. 
+
+==References==
+
+https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki#Block_size
+
+https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2017-January/013490.html
+
+https://eprint.iacr.org/2017/1066.pdf
+
+https://github.com/tothemoon-org/extension-blocks/blob/master/spec.md#specification
+
+https://github.com/mimblewimble/grin/blob/master/doc/intro.md
+
+==Copyright==
+
+This document is placed in the public domain.
