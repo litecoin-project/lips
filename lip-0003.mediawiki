@@ -7,9 +7,9 @@
 	Charlie Lee <coblee@litecoin.org>
   Comments-Summary: No comments yet.
   Comments-URI: https://github.com/litecoin/lips/wiki/Comments:LIP-0003
-  Status: 
+  Status: Draft
   Type: Standards Track
-  Created: 
+  Created: 2019-10-20
   License: PD
 </pre>
 
