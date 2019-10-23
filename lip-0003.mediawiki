@@ -85,7 +85,7 @@ Extension blocks (EB) create a side-chain like layer alongside canonical Litecoi
 
 ====Rationale for Extension Blocks====
 
-It is possible to implement private transactions, such as [https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2016-January/012194.html Confidential Transactions], via soft-fork. This would be the least disruptive method as it would preserve script-based transactions. However, the end result would be very similar to how extension blocks would work. All transactions would have to be sent into a single "anyone-can-spend" address which non-upgraded nodes would not be able to track and audit because amounts would be obfuscated. Therefore, the only functional difference between the two methods would be that peg-in and peg-out transactions from the extension blocks are time-locked.
+It is possible to implement private transactions, such as [https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2016-January/012194.html Confidential Transactions], via soft-fork. This would be the least disruptive method as it would preserve script-based transactions. However, the end result would be very similar to how extension blocks would work. All transactions would have to be sent into a single "anyone-can-spend" address which non-upgraded nodes would not be able to track and audit because amounts would be obfuscated. Therefore, the only functional difference between the two methods would be that peg-out transactions from the extension blocks are time-locked.
 
 In light of this, we decided to implement MW through EB because it enables a significantly more scalable commitment scheme in regards to blockchain size when compared to other privacy techniques.
 
