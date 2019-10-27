@@ -116,7 +116,7 @@ When a peg-in transaction occurs, new coins must also be introduced into the EB 
 
 A peg-in transaction without a corresponding MW coinbase transaction is considered invalid as these transactions are basically sending coins to an unredeemable address. Therefore miners will not include them in a block and nodes will not relay them.
 
-Lastly, these newly minted coins in the EB will not be time-lock and will be immediately available to spend. In the event of a reorg, the kernel commitment will not change so the exact same peg-in transaction and MW coinbase transaction can be replayed.
+Lastly, these newly minted coins in the EB will not be time-locked and will be immediately available to spend. In the event of a reorg, the kernel commitment will not change so the exact same peg-in transaction and MW coinbase transaction can be replayed.
 
 ====Total Size of Peg-In Transaction====
 
