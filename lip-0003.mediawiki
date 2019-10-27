@@ -93,6 +93,8 @@ In light of this, we decided to implement MW through EB because it enables a sig
 
 This section will discuss the consensus rules for implementing MW through EB. This specification builds upon the extension blocks proposal detailed in [https://github.com/litecoin-project/lips/blob/master/lip-0002.mediawiki LIP-0002].
 
+:: [[File:lip-0003/MW-EB.png]]
+
 ===Version 9 Witness Program===
 
 This proposal will use and follow the new witness program introduced in [https://github.com/litecoin-project/lips/blob/master/lip-0002.mediawiki#new-witness-program-extver LIP-0002]. We will use version number of 0x09 for this new witness program.
