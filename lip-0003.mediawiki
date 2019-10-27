@@ -104,7 +104,7 @@ Extension addresses will use the version 9 witness program, with <code>eb_commit
 #MW transaction kernels from the extension block.
 #MW UTXO set from the extension block.
 
-For this proposal, extension address will be name Hogwarts addresses. (HogAddr)
+For this proposal, extension addresses will be named Hogwarts addresses. (HogAddr)
 
 ===Peg-In Transactions===
 
