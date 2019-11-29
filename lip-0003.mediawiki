@@ -32,7 +32,7 @@ However, it is possible for transactions to be selectively disclosed by proving 
 
 Another disadvantage of these types of ledgers is that validating them requires processing the entire history of transactions. This means that on-boarding new users requires a long process of initial download and validation.
 
-We would prefer the burden on new users to be minimal. This proposal would allow making the initial validation burden in the extension block grow roughly with the numbers of users (more precisely, it would grow with the UTXO set), as opposed to having it grow with the transaction history.
+We would prefer the burden on new users to be minimal. This proposal would allow making the initial validation burden in the extension block grow largely with the numbers of users (the UTXO set), as opposed to having it grow strictly with the transaction history.
 
 ==Design==
 
