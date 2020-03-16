@@ -39,7 +39,7 @@ There's a couple of different ways of committing to additional data on outputs w
 
 Now that we have a way to commit to additional data, the sender can generate the blinding factor of the receiver's outputs, encrypt the blinding factor and value so that only the sender and receiver can decrypt it, and commit to the encrypted data as part of the UTXO. We now effectively have a 1-of-2 multisig output that either the sender or receiver can spend.
 
-To ensure only the receiver can then spend the output, the sender can also commit to the receiver's public key (`receiver_pubkey`). The protocol can then be modified such that sending an output requires the sender to include a signature, proving knowledge of the receiver.
+To ensure only the receiver can then spend the output, the sender can also commit to the receiver's public key ('''receiver_pubkey'''). The protocol can then be modified such that sending an output requires the sender to include a signature, proving knowledge of the receiver.
 
 ===Problems===
 
@@ -52,41 +52,41 @@ At first glance, this approach seems to work. But it introduces 3 additional pro
 
 These new problems can actually be solved by applying a concept similar to the balance equation at the heart of the Mimblewimble protocol. In traditional Mimblewimble, we have the following balance equation to ensure no unexpected inflation occured:
 
-(i) `sum(output.commitment) - sum(input.commitment) == total_supply*H + sum(kernel.commitment) + kernel_offset*G`
+(i) '''sum(output.commitment) - sum(input.commitment) == total_supply*H + sum(kernel.commitment) + kernel_offset*G'''
 
-As it turns out, if we add a second, similar balance equation to the protocol, we can solve all 3 of the above mentioned problems. We change our naive solution by removing the input signature and adding a blinding factor to the transaction (`owner_offset`). This allows us to apply a new validation rule for every new block that requires the following relation hold:
+As it turns out, if we add a second, similar balance equation to the protocol, we can solve all 3 of the above mentioned problems. We change our naive solution by removing the input signature and adding a blinding factor to the transaction ('''owner_offset'''). This allows us to apply a new validation rule for every new block that requires the following relation hold:
 
-(ii) `sum(output.sender_pubkey) - sum(input.receiver_pubkey * hash(input.receiver_pubkey)) == sum(owner_offset)*G`
+(ii) '''sum(output.sender_pubkey) - sum(input.receiver_pubkey * hash(input.receiver_pubkey)) == sum(owner_offset)*G'''
 
 ==Specification==
 
 This section will detail the transaction model changes and consensus rules for implementing one-sided MW transactions. This specification builds upon the mimblewimble proposal detailed in [https://github.com/litecoin-project/lips/blob/master/lip-0003.mediawiki LIP-0003].
 
-The ability to commit to additional data in a UTXO allows us to require a new block of data (`output_data`) on all UTXOs. This will contain:
+The ability to commit to additional data in a UTXO allows us to require a new block of data ('''output_data''') on all UTXOs. This will contain:
 * sender's ephemeral pubkey
 * receiver's pubkey
-* encrypted data using `ECDHE(sender's key, receiver's key)`. Will contain: output value & blinding factor
-* signature of `output_data` using sender's key
+* encrypted data using '''ECDHE(sender's key, receiver's key)'''. Will contain: output value & blinding factor
+* signature of '''output_data''' using sender's key
 
 :: [[File:lip-0004/tx-model.png]]
 
-Spending the output later requires proving knowledge of the receiver's secret key. This can be proven by revealing `owner_offset`, which is calculated as `sum(output.sender_privkey) - sum(input.receiver_privkey * hash(input.receiver_pubkey))`.
+Spending the output later requires proving knowledge of the receiver's secret key. This can be proven by revealing '''owner_offset''', which is calculated as '''sum(output.sender_privkey) - sum(input.receiver_privkey * hash(input.receiver_pubkey))'''.
 
 The following validation rules will be added on top of all existing MW validation rules:
-1. The `output_data` (blue section in output) must be committed to for each utxo
-2. `sender_signature` must be a valid signature of `receiver_pubkey || encrypted_data` for `sender_pubkey`
-3. `sum(output.sender_pubkey) - sum(input.receiver_pubkey * hash(input.receiver_pubkey)) == sum(owner_offset)*G` must hold true for every new block
+1. The '''output_data''' (blue section in output) must be committed to for each utxo
+2. '''sender_signature''' must be a valid signature of '''receiver_pubkey || encrypted_data''' for '''sender_pubkey'''
+3. '''sum(output.sender_pubkey) - sum(input.receiver_pubkey * hash(input.receiver_pubkey)) == sum(owner_offset)*G''' must hold true for every new block
 
 ==Security==
 
-Because both the sender and receiver know the blinding factor of an output, it's no longer enough to verify the current UTXO set against the kernels. `owner_offsets` must be verified for all recent blocks. We recommend new nodes verify all input signatures for the most recent blocks up to the cut-through horizon, since all full nodes should already have access to those blocks.
+Because both the sender and receiver know the blinding factor of an output, it's no longer enough to verify the current UTXO set against the kernels. '''owner_offsets''' must be verified for all recent blocks. We recommend new nodes verify all input signatures for the most recent blocks up to the cut-through horizon, since all full nodes should already have access to those blocks.
 
 This still leaves one attack that isn't possible today. The attack works as follows (assume input signatures verified for the past day):
 
 * Alice creates a transaction containing an output for Bob.
 * Bob sends Alice the goods she purchased.
 * Several days (or perhaps even years) pass where Bob has not yet spent his coins.
-* Alice forces a large reorg beyond the horizon. She can then send Bob's output back to herself, since she knows the blinding factor, and `owner_offsets` aren't validated for transactions in blocks beyond the horizon.
+* Alice forces a large reorg beyond the horizon. She can then send Bob's output back to herself, since she knows the blinding factor, and '''owner_offsets''' aren't validated for transactions in blocks beyond the horizon.
 
 While this attack theoretically allows you to spend coins of any age, they have to be coins the attacker previously sent, and have not yet been spent by the receiver. However, the financial incentives provided by this attack are unlikely to be larger than those of much shorter reorgs today. For the extra cautious though, simply self-spending coins when you receive large amounts would prevent this attack, at the minimal cost of an additional kernel.
 
