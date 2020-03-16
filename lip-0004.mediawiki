@@ -73,9 +73,9 @@ The ability to commit to additional data in a UTXO allows us to require a new bl
 Spending the output later requires proving knowledge of the receiver's secret key. This can be proven by revealing '''owner_offset''', which is calculated as '''sum(output.sender_privkey) - sum(input.receiver_privkey * hash(input.receiver_pubkey))'''.
 
 The following validation rules will be added on top of all existing MW validation rules:
-1. The '''output_data''' (blue section in output) must be committed to for each utxo
-2. '''sender_signature''' must be a valid signature of '''receiver_pubkey || encrypted_data''' for '''sender_pubkey'''
-3. '''sum(output.sender_pubkey) - sum(input.receiver_pubkey * hash(input.receiver_pubkey)) == sum(owner_offset)*G''' must hold true for every new block
+# The '''output_data''' (blue section in output) must be committed to for each utxo
+# '''sender_signature''' must be a valid signature of '''receiver_pubkey || encrypted_data''' for '''sender_pubkey'''
+# '''sum(output.sender_pubkey) - sum(input.receiver_pubkey * hash(input.receiver_pubkey)) == sum(owner_offset)*G''' must hold true for every new block
 
 ==Security==
 
