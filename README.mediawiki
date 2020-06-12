@@ -19,21 +19,21 @@ Those proposing changes should consider that ultimately consent may rest with th
 | LIP Purpose and Guidelines
 | Andrew Yang
 | Process
-| Draft
+| Active
 |- style="background-color: #cfffcf"
 | [[lip-0002.mediawiki|2]]
 | Consensus (soft fork)	
 | Extension Blocks
 | Andrew Yang, David Burkett, Charlie Lee
 | Standard
-| Draft
+| Proposed
 |-
 | [[lip-0003.mediawiki|3]]
 | Consensus (soft fork)	
 | MimbleWimble via Extension Blocks
 | Andrew Yang, David Burkett, Charlie Lee
 | Standard
-| Draft
+| Proposed
 |}
 
 <!-- IMPORTANT!  See the instructions at the top of this page, do NOT JUST add LIPs here! -->
