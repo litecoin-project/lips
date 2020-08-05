@@ -1,0 +1,77 @@
+<pre>
+  LIP: 4
+  Layer: Consensus (soft fork)
+  Title: Dark Gravity Wave (Consensus layer)
+  Author: Kristian Kramer <kristian@beyondcoin.io>
+  Comments-Summary: No comments yet.
+  Comments-URI: https://github.com/litecoin/lips/wiki/Comments:LIP-0004
+  Status: Draft
+  Type: Standards Track
+  Created: 2020-08-04
+  License: PD
+</pre>
+
+==Abstract==
+
+This LIP introduces Dark Gravity Wave (DGW) as a way to adjust the block difficulty every block to allow Litecoin to keep it's target block time of 2.5 minutes or 150 seconds. 
+
+Blocks generated with Dark Gravity Wave are as valid as original blocks generated with the difficult retarget interval of every 2016 blocks.
+
+DGW can be soft forked in via version bits. Old clients will be able to see the new blocks and the new difficulty adjustment interval, but may not be able to generate new blocks with DGW.
+
+==Motivation==
+
+Our primary motivation to integrate DGW is to allow faster difficulty retargets. This will allow new blocks to be mined at the target interval of 150 seconds
+
+==Design==
+
+DGW blocks will change the way the block difficulty is adjusted. Instead of being linear, the block difficulty will be adjusted on a per-block basis making it non-linear. Thus, keeps the designated block time closer to 150 seconds as was intended.
+
+It adds a new block difficulty adjustment algorithm which changes the block difficulty to keep the block time closer to the target block time of 150 seconds.
+
+==Specification==
+This section will discuss the consensus rules for implementing DGW.
+
+===New Block Difficulty Adjustment Algorithm===
+
+A new block difficulty adjustment algorithm which changes the difficulty depending on many factors from the previous block mined. Factors such as, time elapsed to mine the block, network hash rate at the time of mining, and difficulty. It uses theses factors to decide what the difficulty of the next block should be to keep the block time at around 150 seconds.
+
+Blocks mined with the new difficulty adjustment algorithm will be valid whereas blocks mined without the new algorithm will be invalid. This is why a softfork is needed.
+
+===Backward Compatibility===
+
+Blocks with Dark Gravity Wave (DGW) function like a soft fork in that older software do not need to upgrade, unless they are clients used to generate new coins. But non-upgraded nodes i.e. non-DGW nodes, will not be able to mine new blocks with the DGW difficulty . Nevertheless, wallets should treat "anyone-can-spend" scripts with care and non-upgraded nodes are strongly encouraged to upgrade.
+
+====What a non-upgraded, non-DGW node can do====
+
+It can view newly mined blocks with DGW and view transactions included in DGW blocks. It can send transactions to be included in a DGW block.
+
+====What a non-upgraded, non-DGW node can not do====
+
+It can not generate new blocks with the DGW difficulty algorithm. Meaning all blocks generated from a non-DGW node will be invalid.
+
+====What an upgraded DGW node can do====
+
+It can generate blocks with the DGW algorithm. It can send transactions to be processed.
+
+==Deployment==
+
+This will be activated with [https://github.com/bitcoin/bips/blob/master/bip-0008.mediawiki BIP8]. The soft fork will be activated 1 year from the day the implementation is released. And miners will be able to activate it early with a 75% signaling threshold.
+
+==Credits==
+
+Thanks to the Dashcoin project for it's creation of Dark Gravity Wave.
+
+==References==
+
+https://litecoin.info/index.php/Difficulty
+
+https://coinguides.org/dark-gravity-wave/
+
+==Implementation==
+
+Coming soon.
+
+==Copyright==
+
+This document is placed in the public domain.
