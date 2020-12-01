@@ -35,18 +35,18 @@ The second problem is both Alice and Bob end up with the keys to the funds, whic
 
 ===Naive Solution===
 
-There's a couple of different ways of committing to additional data on outputs without affecting security or prunability. [https://gist.github.com/DavidBurkett/32e33835b03f9101666690b7d6185203#our-proposal One option] is to "encrypt" the data in the rangeproof using a known key. [https://phyro.github.io/grinvestigation/data_commitments.html Another option] is to modify how the kernel excess is calculated. The method chosen has no effect on the design, so we leave it up to the future protocol developers to choose an approach.
+It's possible to commit to additional data in outputs without affecting security or prunability by using the [https://github.com/ElementsProject/secp256k1-zkp/blob/9c3ba0cfb98e2b1029fcd09ad8bf5e09edbe5b23/include/secp256k1_bulletproofs.h#L180 extra_commit] field in the rangeproof.
 
-Now that we have a way to commit to additional data, the sender can generate the blinding factor of the receiver's outputs, encrypt the blinding factor and value so that only the sender and receiver can decrypt it, and commit to the encrypted data as part of the UTXO. We now effectively have a 1-of-2 multisig output that either the sender or receiver can spend.
+Since we have a way to commit to additional data, the sender can generate the blinding factor of the receiver's outputs, encrypt the blinding factor and value so that only the sender and receiver can decrypt it, and commit to the encrypted data as part of the UTXO. We now effectively have a 1-of-2 multisig output that either the sender or receiver can spend.
 
 To ensure only the receiver can then spend the output, the sender can also commit to the receiver's public key ('''receiver_pubkey'''). The protocol can then be modified such that sending an output requires the sender to include a signature, proving knowledge of the receiver.
 
 ===Problems===
 
 At first glance, this approach seems to work. But it introduces 3 additional problems:
-1. Since the receiver learns the blinding factor of the output, she can use it to modify the UTXO before it's included in a block. She then can plausibly deny ever receiving the funds.
-2. Input signatures can be reused, since there's no randomness to sign without linking an input to a kernel or output. That means if Alice sends to Bob, and Bob later sends to Charlie, Alice can force a short reorg and reuse Bob's signature to send the funds back to herself.
-3. Cut-through can cause the output to be removed before ever being included in a block. This means if Alice sends to Bob, Bob could immediately send to Charlie, and no record will exist on the blockchain for Alice to prove she sent the funds to Bob.
+# Since the receiver learns the blinding factor of the output, she can use it to modify the UTXO before it's included in a block. She then can plausibly deny ever receiving the funds.
+# Input signatures can be reused, since there's no randomness to sign without linking an input to a kernel or output. That means if Alice sends to Bob, and Bob later sends to Charlie, Alice can force a short reorg and reuse Bob's signature to send the funds back to herself.
+# Cut-through can cause the output to be removed before ever being included in a block. This means if Alice sends to Bob, Bob could immediately send to Charlie, and no record will exist on the blockchain for Alice to prove she sent the funds to Bob.
 
 ===Revised Solution===
 
@@ -54,7 +54,7 @@ These new problems can actually be solved by applying a concept similar to the b
 
 (i) '''sum(output.commitment) - sum(input.commitment) == total_supply*H + sum(kernel.commitment) + kernel_offset*G'''
 
-As it turns out, if we add a second, similar balance equation to the protocol, we can solve all 3 of the above mentioned problems. We change our naive solution by removing the input signature and adding a blinding factor to the transaction ('''owner_offset'''). This allows us to apply a new validation rule for every new block that requires the following relation hold:
+As it turns out, if we add a second, similar balance equation to the protocol, we can solve all 3 of the above mentioned problems. We change our naive solution by adding a blinding factor to the transaction ('''owner_offset'''). This allows us to apply a new validation rule for every new block that requires the following relation hold:
 
 (ii) '''sum(output.sender_pubkey) - sum(input.receiver_pubkey * hash(input.receiver_pubkey)) == sum(owner_offset)*G'''
 
@@ -74,21 +74,43 @@ Spending the output later requires proving knowledge of the receiver's secret ke
 
 The following validation rules will be added on top of all existing MW validation rules:
 # The '''output_data''' (blue section in output) must be committed to for each utxo
-# '''sender_signature''' must be a valid signature of '''receiver_pubkey || encrypted_data''' for '''sender_pubkey'''
+# '''sender_signature''' in each '''output_data''' must be a valid signature of '''receiver_pubkey || encrypted_data''' for '''sender_pubkey'''
+# '''input_signature''' for each input must be a valid signature of '''commitment || epoch_height(TBD)''' for '''receiver_pubkey''' of the output it spends
 # '''sum(output.sender_pubkey) - sum(input.receiver_pubkey * hash(input.receiver_pubkey)) == sum(owner_offset)*G''' must hold true for every new block
 
 ==Security==
 
 Because both the sender and receiver know the blinding factor of an output, it's no longer enough to verify the current UTXO set against the kernels. '''owner_offsets''' must be verified for all recent blocks. We recommend new nodes verify all input signatures for the most recent blocks up to the cut-through horizon, since all full nodes should already have access to those blocks.
 
-This still leaves one attack that isn't possible today. The attack works as follows (assume input signatures verified for the past day):
+This still leaves one attack that isn't possible today. The attack works as follows (assume input signatures verified for the past week):
 
 * Alice creates a transaction containing an output for Bob.
 * Bob sends Alice the goods she purchased.
-* Several days (or perhaps even years) pass where Bob has not yet spent his coins.
+* Several weeks (or perhaps even years) pass where Bob has not yet spent his coins.
 * Alice forces a large reorg beyond the horizon. She can then send Bob's output back to herself, since she knows the blinding factor, and '''owner_offsets''' aren't validated for transactions in blocks beyond the horizon.
 
 While this attack theoretically allows you to spend coins of any age, they have to be coins the attacker previously sent, and have not yet been spent by the receiver. However, the financial incentives provided by this attack are unlikely to be larger than those of much shorter reorgs today. For the extra cautious though, simply self-spending coins when you receive large amounts would prevent this attack, at the minimal cost of an additional kernel.
+
+==Stealth Addresses==
+
+Stealth addresses can be supported using the ''Dual-Key Stealth Address Protocol (DKSAP)''. Using this protocol, the receiver's permanent address consists of a permanent address ('''A''', '''B'''), where '''A''' is the scan pubkey used for identifying outputs, and '''B''' is the spend pubkey.
+
+To generate a one-time address for the receiver, the sender must:
+# Generate a random nonce keypair ('''r''', '''R''')
+# Include '''R''' in the '''output_data'''
+# Calculate the '''receiver_pubkey''' as '''(hash(rA)*G + B)'''
+
+The receiver can identify outputs belonging to them by grinding through each output. If they come across an output whose '''receiver_pubkey''' is '''(hash(aR)*G + B)''', then the receiver knows the output is their own.
+
+==Replay Attacks==
+
+The input signature needs to commit to the '''epoch_height''', and signatures must be unique within each epoch. This is necessary to prevent the possibility of replay attacks where Alice could reuse a one-time address when sending coins to Bob, and then can later send those coins back to herself by reusing Bob's previous '''input_signature'''.
+
+TODO: Describe how epochs and epoch_height are defined.
+
+==Payment Proofs==
+
+A payment proof shall consist of the output and rangeproof, merkle proofs proving the pair were in the output & rangeproof PMMRs, and a signature proving knowledge of the '''sender_privkey'''. If stealth addresses are used, the private nonce '''r''' must also be included in the payment proof.
 
 ==Deployment==
 
@@ -101,10 +123,6 @@ Special thanks to Hansie Odendaal, Phyro, and John Tromp for their valuable feed
 ==References==
 
 https://gist.github.com/DavidBurkett/32e33835b03f9101666690b7d6185203
-
-https://phyro.github.io/grinvestigation/data_commitments.html
-
-
 
 ==Copyright==
 
