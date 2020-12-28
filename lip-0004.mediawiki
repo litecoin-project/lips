@@ -25,7 +25,7 @@ Non-interactive transactions are favorable in most situations, since private key
 
 ===Background===
 
-It's long been the belief of most that non-interactive transactions were not possible in mimblewimble, since knowledge of an output's blinding factor is necessary to create rangeproofs, and to build the schnorr signature.
+It's long been the belief of most that non-interactive transactions were not possible in mimblewimble, since knowledge of an output's blinding factor is necessary to create rangeproofs and to build the schnorr signature.
 
 To solve this, we must first find a way for both the sender and the receiver to know the blinding factor, but nobody else. Diffie-Hellman is perfect for this. The sender simply generates a keypair, performs ECDH with the receiver's pubkey, and generates a shared secret, which can be used as the blinding factor. The sender can then generate the receiver's outputs, blinding factors, and signature to create a valid transaction. But this presents 2 obvious problems.
 
@@ -70,17 +70,19 @@ The ability to commit to additional data in a UTXO allows us to require a new bl
 
 :: [[File:lip-0004/tx-model.png]]
 
-Spending the output later requires proving knowledge of the receiver's secret key. This can be proven by revealing '''owner_offset''', which is calculated as '''sum(output.sender_privkey) - sum(input.receiver_privkey * hash(input.receiver_pubkey))'''.
+Spending the output later requires proving knowledge of the receiver's secret key. This can be proven by revealing the owner "excess", which is calculated as '''sum(output.sender_privkey) - sum(input.receiver_privkey * hash(input.receiver_pubkey))'''.
+For extra security, this excess will be split into 2 parts, '''owner_offset''' and '''owner_proof.commitment''', similar to how we split kernel excess into a raw '''kernel_offset''' and a '''kernel.commitment'''. Unlike kernels, '''owner_proof'''s can be pruned beyond the horizon.
 
 The following validation rules will be added on top of all existing MW validation rules:
 # The '''output_data''' (blue section in output) must be committed to for each utxo
-# '''sender_signature''' in each '''output_data''' must be a valid signature of '''receiver_pubkey || encrypted_data''' for '''sender_pubkey'''
-# '''input_signature''' for each input must be a valid signature of '''commitment || epoch_height(TBD)''' for '''receiver_pubkey''' of the output it spends
-# '''sum(output.sender_pubkey) - sum(input.receiver_pubkey * hash(input.receiver_pubkey)) == sum(owner_offset)*G''' must hold true for every new block
+# '''sender_signature''' in each '''output_data''' must be a valid signature of '''receiver_pubkey || public_nonce || encrypted_data''' for '''sender_pubkey'''
+# '''input_signature''' for each input must be a valid signature of '''TBD''' for '''receiver_pubkey''' of the output it spends
+# '''owner_signature''' for each '''owner_proof''' must be a valid signature of the hash of a kernel in the block
+# '''sum(output.sender_pubkey) - sum(input.receiver_pubkey * hash(input.receiver_pubkey)) == sum(owner_offset)*G + sum(owner_proof.commitment)''' must hold true for every new block
 
 ==Security==
 
-Because both the sender and receiver know the blinding factor of an output, it's no longer enough to verify the current UTXO set against the kernels. '''owner_offsets''' must be verified for all recent blocks. We recommend new nodes verify all input signatures for the most recent blocks up to the cut-through horizon, since all full nodes should already have access to those blocks.
+Because both the sender and receiver know the blinding factor of an output, it's no longer enough to verify the current UTXO set against the kernels. Owner excesses ('''owner_offsets''' and '''owner_proofs''') must be verified for all recent blocks. We recommend new nodes verify all input signatures for the most recent blocks up to the cut-through horizon, since all full nodes should already have access to those blocks.
 
 This still leaves one attack that isn't possible today. The attack works as follows (assume input signatures verified for the past week):
 
@@ -96,17 +98,11 @@ While this attack theoretically allows you to spend coins of any age, they have 
 Stealth addresses can be supported using the ''Dual-Key Stealth Address Protocol (DKSAP)''. Using this protocol, the receiver's permanent address consists of a permanent address ('''A''', '''B'''), where '''A''' is the scan pubkey used for identifying outputs, and '''B''' is the spend pubkey.
 
 To generate a one-time address for the receiver, the sender must:
-# Generate a random nonce keypair ('''r''', '''R''')
-# Include '''R''' in the '''output_data'''
+# Generate a random nonce keypair ('''r''', '''public_nonce''')
+# Include '''public_nonce''' in the '''output_data'''
 # Calculate the '''receiver_pubkey''' as '''(hash(rA)*G + B)'''
 
 The receiver can identify outputs belonging to them by grinding through each output. If they come across an output whose '''receiver_pubkey''' is '''(hash(aR)*G + B)''', then the receiver knows the output is their own.
-
-==Replay Attacks==
-
-The input signature needs to commit to the '''epoch_height''', and signatures must be unique within each epoch. This is necessary to prevent the possibility of replay attacks where Alice could reuse a one-time address when sending coins to Bob, and then can later send those coins back to herself by reusing Bob's previous '''input_signature'''.
-
-TODO: Describe how epochs and epoch_height are defined.
 
 ==Payment Proofs==
 
