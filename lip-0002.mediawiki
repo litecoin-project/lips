@@ -17,7 +17,7 @@
 
 This LIP introduces extension blocks (EB) as a way to implement new protocols to Litecoin without relaxing any consensus rules. Extension blocks are created through peg-in transactions and an integrating transaction, a term coined by Johnson Lau in his original [https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2017-January/013490.html proposal]. Litecoin can also be moved out from the EB to the canonical chain through peg-out transactions. 
 
-Extension blocks are additional "blocks" of data that each canonical block commits to using an _Integrating Transaction (`ExtTxn`)_. Like canonical blocks, they shall have their own headers and transactions, though the rules for serializing and verifying extension blocks may differ from those of the canoncial blocks.
+Extension blocks are additional "blocks" of data that each canonical block commits to using an Integrating Transaction (_ExtTxn_). Like canonical blocks, they shall have their own headers and transactions, though the rules for serializing and verifying extension blocks may differ from those of the canoncial blocks.
 
 EB can be soft forked in. Old clients will only see the coins anchored in the integrating transaction but will not be aware of the EB side.
 
@@ -48,36 +48,36 @@ The EB designers are free to specify any serialization and verification rules th
 EBs can be used to increase the effective block size of the blockchain. There is no real theoretical limit to the size of these blocks, though it is expected that each EB type will specify some form of consensus rule(s) for limiting its size.
 
 ====Integrating Transaction (ExtTxn)====
-The integrating transaction (`ExtTxn`) handles both the peg-ins to the EB and the peg-outs from the EB. It consists of X+1 inputs* and Y+1 outputs where X is the number of peg-ins and Y is the number of peg-outs. The first input is always a spend from the previous block’s `ExtAddr` UTXO and the first output is sending remaining coins to the new `ExtAddr` for the block (described below).
+The integrating transaction (_ExtTxn_) handles both the peg-ins to the EB and the peg-outs from the EB. It consists of X+1 inputs* and Y+1 outputs where X is the number of peg-ins and Y is the number of peg-outs. The first input is always a spend from the previous block’s _ExtAddr_ UTXO and the first output is sending remaining coins to the new _ExtAddr_ for the block (described below).
 
-The integrating transaction must be at the end of the block, as it will be spending outputs created in the same block. For the first activated EB type, it must be the last transaction in the block. The 2nd EB type activated shall require the next-to-last transaction in the block to be its `ExtTxn`, and so on as more EB types are activated. 
+The integrating transaction must be at the end of the block, as it will be spending outputs created in the same block. For the first activated EB type, it must be the last transaction in the block. The 2nd EB type activated shall require the next-to-last transaction in the block to be its _ExtTxn_, and so on as more EB types are activated. 
 
-* Note that the first ever `ExtTxn` for an EB type will only have X inputs, as there won’t be a previous block `ExtAddr` UTXO to spend. If in any block, all the coins are pulled out of the EB, the `ExtTxn` will still create an output of 0 coins to the `ExtAddr`. And of course if that happens, the next block’s `ExtTxn` transaction will spend that output of 0 coins.
+* Note that the first ever _ExtTxn_ for an EB type will only have X inputs, as there won’t be a previous block _ExtAddr_ UTXO to spend. If in any block, all the coins are pulled out of the EB, the _ExtTxn_ will still create an output of 0 coins to the _ExtAddr_. And of course if that happens, the next block’s _ExtTxn_ transaction will spend that output of 0 coins.
 
 =====Extension Addresses (ExtAddr)=====
-A special anyone-can-spend bech32 address will be created every block with the new witness program introduced above. These addresses will be called extension addresses (`ExtAddr`). For `ExtAddr`, the witness program, <code>eb_commitment</code>, is 2 to 40 bytes, where <code>eb_commitment</code> commits to the EB corresponding to the canonical block. This ensures that the canonical block commits to the corresponding EB block via the `ExtAddr`.
+A special anyone-can-spend bech32 address will be created every block with the new witness program introduced above. These addresses will be called extension addresses (_ExtAddr_). For _ExtAddr_, the witness program, <code>eb_commitment</code>, is 2 to 40 bytes, where <code>eb_commitment</code> commits to the EB corresponding to the canonical block. This ensures that the canonical block commits to the corresponding EB block via the _ExtAddr_.
 
-At the end of every block, the number of coins held in this block’s `ExtAddr` will correspond exactly to the number of coins in the EB. As coins move in and out of the EB, the `ExtAddr` will change every block and will be chained together, with each new `ExtTxn` spending the previous `ExtTxn's` `ExtAddr` UTXO.  
+At the end of every block, the number of coins held in this block’s _ExtAddr_ will correspond exactly to the number of coins in the EB. As coins move in and out of the EB, the _ExtAddr_ will change every block and will be chained together, with each new _ExtTxn_ spending the previous _ExtTxn's_ _ExtAddr_ UTXO.  
 
 =====ExtTxn Inputs=====
-For each block, the miner will collect all the transactions sending coins to an `ExtVer` address (i.e. peg-in transactions), and then spend them immediately in the `ExtTxn`. The order of the `ExtTxn` inputs shall match the order of the peg-in transactions in the block.
+For each block, the miner will collect all the transactions sending coins to an _ExtVer_ address (i.e. peg-in transactions), and then spend them immediately in the _ExtTxn_. The order of the _ExtTxn_ inputs shall match the order of the peg-in transactions in the block.
 
 =====ExtTxn Outputs=====
-For each block, the miner will collect all the peg-out transactions in the EB and create corresponding outputs in the `ExtTxn`, sending coins out on the canonical side. The order of the `ExtTxn` outputs must match the order of the peg-out transactions in the EB.
+For each block, the miner will collect all the peg-out transactions in the EB and create corresponding outputs in the _ExtTxn_, sending coins out on the canonical side. The order of the _ExtTxn_ outputs must match the order of the peg-out transactions in the EB.
 
 Note that it is not possible for a peg-out transaction to send coins to a version ExtVer address. In other words, one cannot peg-out to a peg-in address.
 
 =====ExtTxn Fees=====
-All the fees in the EB will be collected on the canonical side as fees on the `ExtTxn`. The miner may collect these fees just as they do for canonical transactions today.
+All the fees in the EB will be collected on the canonical side as fees on the _ExtTxn_. The miner may collect these fees just as they do for canonical transactions today.
 
 ===Pegging-In===
 A peg-in occurs when coins are sent from the canonical block to the extension block.
 
 ====New Witness Program (ExtVer)====
-A new witness version number (`ExtVer`) will be defined for each EB type. Transactions sent to addresses with version `ExtVer` will serve as a signal to miners to collect and then spend these peg-in outputs into the `ExtTxn` (integration transaction).
+A new witness version number (_ExtVer_) will be defined for each EB type. Transactions sent to addresses with version _ExtVer_ will serve as a signal to miners to collect and then spend these peg-in outputs into the _ExtTxn_ (integration transaction).
 
 ====Workflow====
-To execute a peg-in, users send coins to a bech32 address using the new witness program that commits to a corresponding coinbase transaction on the extension block with the same amount of coins. To lock up the corresponding coins on the canonical blockchain, miners will spend these coins in the `ExtTxn`, sending them to the `ExtAddr` of the block.
+To execute a peg-in, users send coins to a bech32 address using the new witness program that commits to a corresponding coinbase transaction on the extension block with the same amount of coins. To lock up the corresponding coins on the canonical blockchain, miners will spend these coins in the _ExtTxn_, sending them to the _ExtAddr_ of the block.
 
 A peg-in transaction on the canonical blockchain will be considered invalid if there doesn’t exist the corresponding coinbase transaction on the extension blockchain. This is to make sure coins aren’t accidentally destroyed.
 
@@ -85,7 +85,7 @@ A peg-in transaction on the canonical blockchain will be considered invalid if t
 A peg-out occurs when coins are sent from the extension block to the canonical block.
 
 ====Workflow====
-To execute a peg-out, users will create a peg-out transaction on the EB. This peg-out transaction must commit to a Litecoin address (or script) where the same amount of coins will be sent to on the canonical blockchain. The peg-out transaction in the EB will destroy those coins from the EB side. On the canonical blockchain, the same amount of coins will be sent from the previous block's `ExtAddr` to the committed Litecoin address (or script) as part of the `ExtTxn`.
+To execute a peg-out, users will create a peg-out transaction on the EB. This peg-out transaction must commit to a Litecoin address (or script) where the same amount of coins will be sent to on the canonical blockchain. The peg-out transaction in the EB will destroy those coins from the EB side. On the canonical blockchain, the same amount of coins will be sent from the previous block's _ExtAddr_ to the committed Litecoin address (or script) as part of the _ExtTxn_.
 
 Peg-out outputs on the canonical blockchain must be locked for a number of blocks. This is to ensure that child transactions cannot be created immediately. Since peg-out transactions share similar properties to coinbase transactions in that the transaction hash will change if there’s a reorg, chaining transaction on peg-out transactions would result in invalid transactions after a reorg and lead to potential loss of money.
 
