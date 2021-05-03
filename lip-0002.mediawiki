@@ -105,10 +105,6 @@ It can not validate transactions in the EB. This means it can not validate EB to
 
 It can validate regular Litecoin transactions. It can validate peg-in and peg-out transactions. It can validate EB to EB transactions.
 
-==Deployment==
-
-This will be activated with [https://github.com/bitcoin/bips/blob/master/bip-0008.mediawiki BIP8]. The soft fork will be activated 1 year from the day the implementation is released. And miners will be able to activate it early with a 75% signaling threshold.
-
 ==Credits==
 
 Special thanks to Johnson Lau for originating the idea of extension blocks. 
