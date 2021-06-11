@@ -1,8 +1,8 @@
 <pre>LIP: 4
 Layer: Consensus (hard fork)
 Title: Non-Interactive Proofs of Proof-of-Work (NIPoPoW)
-Author: Matthias Benkort &lt;matthias.benkort@iohk.io&gt;
-Comments-URI: &lt;links to wiki page for comments&gt;
+Author: Matthias Benkort <matthias.benkort@iohk.io>;
+Comments-URI: <links to wiki page for comments>;
 Status: Draft
 Type: Standards Track
 Created: 2021-05-06
@@ -24,8 +24,11 @@ This proposal explains how block interlinks should be constructed and stored, bu
 
 At its heart, NIPoPow separate blocks into '''levels'''. A level represents the number of leading <code>0</code> of a block ID (when encoded in base16), or more formally, for a block <code>B</code> and a chain difficulty target <code>T</code>.
 
-<pre>μ = level(B) = floor(log(T) - log(id(B))) </pre>
-Where <code>id(B)</code> represents the block ID of the block <code>B</code>. Note that a block of level <code>μ</code> (<code>μ &gt; 1</code>) is also of level <code>μ-1</code>. We call block of level <code>μ</code> a '''μ-superblock''' and by convention the genesis block is considered to have a level of <code>∞</code> in addition to being the root block of every levels. This creates multiple sequences of block ids, from the genesis block and onward. The higher the level, the smaller the sequence; on average each sequence will contain <code>n = L / 2^μ</code> elements, where <code>L</code> is the length of chain. That is, half of blocks are of level 1, 1/4 of the blocks are of level 2, 1/8 of level 3 etc…
+<pre>
+μ = level(B) = floor(log(T) - log(id(B)))
+</pre>
+
+Where <code>id(B)</code> represents the block ID of the block <code>B</code>. Note that a block of level <code>μ</code> (<code>μ > 1</code>) is also of level <code>μ-1</code>. We call block of level <code>μ</code> a '''μ-superblock''' and by convention the genesis block is considered to have a level of <code>∞</code> in addition to being the root block of every levels. This creates multiple sequences of block ids, from the genesis block and onward. The higher the level, the smaller the sequence; on average each sequence will contain <code>n = L / 2^μ</code> elements, where <code>L</code> is the length of chain. That is, half of blocks are of level 1, 1/4 of the blocks are of level 2, 1/8 of level 3 etc…
 
 [[File:lip-0004/figure-1.png]]
 
@@ -35,17 +38,18 @@ Similarly, a subchain containing all the blocks of a certain level <code>μ</cod
 
 In NIPoPow, block headers not only keep track of the previous block header hash, but also keep track of the most recent super blocks of various levels in a dedicated data-structure. We call that data-structure the block '''interlink''' which is essentially a vector with the following definition:
 
-<blockquote><code>∀i &gt; 0</code>: <code>interlink[i]</code> is the hash of the most recent block with ID smaller than <code>T / 2^i</code>.
-</blockquote>
+<blockquote><code>∀i > 0</code>: <code>interlink[i]</code> is the hash of the most recent block with ID smaller than <code>T / 2^i</code>.</blockquote>
+
 By convention, <code>interlink[0]</code> refers to the genesis block. For each block <code>block</code>, miners must construct the interlinks as follows (in pseudo-code):
 
-<syntaxhighlight lang="python">
+<pre>
 def updateInterlink(block):
     interlink = block.interlink
     for µ in [ 0 .. level(block) ]:
         interlink[µ] = id(block)
     return interlink
-</syntaxhighlight>
+</pre>
+
 The interlink must then be stored in each block header.
 
 == Chain Validation ==
@@ -57,13 +61,13 @@ In the following section, we’ll be considering two parameters:
 * <code>m</code> as the compression parameter
 * <code>k</code> as the common prefix parameter
 
-The value chosen for <code>k</code> depends in principle on the hashing power of the system, and represents the number of blocks after which one can consider a block immutable (in such way that the suffix of the chain would be too expensive to re-calculate for an attacker). In Bitcoin, <code>k</code> is typically chosen around 6-7. We also conservatively choose <code>m = 3*k</code>
+The value chosen for <code>k</code> depends in principle on the hashing power of the system, and represents the number of blocks after which one can consider a block immutable (in such way that the suffix of the chain would be too expensive to re-calculate for an attacker). In Bitcoin, <code>k</code> is typically chosen around 6-7. We also conservatively choose <code>m = 3*k</code>.
 
 === Compression ===
 
 NIPoPow nodes only need to keep track of a fraction of the entire chain to operate. We therefore define a compression function that prunes unnecessary blocks from the chain as such:
 
-<syntaxhighlight lang="python">
+<pre>
 def compress(chain):
     superblocks, _, suffix = dissolve(chain)
     return flatten(superblocks) + suffix
@@ -90,7 +94,7 @@ def dissolve(chain)
     else:
         superblocks[0] = prefix
         return superblocks, 0, suffix
-</syntaxhighlight>
+</pre>
 
 This algorithm assumes the existence of a function <code>superchain</code> which computes the μ-superchain of a corresponding chain prefix, given some level <code>μ</code>. And also, a function <code>flatten</code> which flattens the list of lists of superblocks into a single list, removing duplicate blocks.
 
@@ -109,16 +113,16 @@ O               O               O               O
 
 If we assume <code>m=2</code> for the sake of the example here.
 
-# μ=2</code>: [0,4,8,12]
-## 2 is the maximum level for which we have at least <code>2*m</code> superblocks. We therefore keep all superblocks of that level.</p></li>
-# <code>μ=1</code>: [6,8,10,12]
-## On the next level, we keep the last <code>2*m</code> 1-superblocks (reminder than 2-superblocks are also 1-superblocks), so <code>6</code>, <code>8</code>, <code>10</code> and <code>12</code>.</li>
-## Then, we add any 1-superblock which happened after the parent pivot <code>10</code>, which means <code>10</code> and <code>12</code> already counted as part of the previous step.</li></ol>
-# <code>μ=0</code> [9, 10, 11, 12]
-## At level 0, there’s no more compression going on so we simply keep the last <code>2*m</code> blocks of the prefix: <code>9</code>, <code>10</code>, <code>11</code> and <code>12</code>.</li>
-## As for the previous case, we also include all blocks greater than the parent pivot <code>10</code>, which means <code>10</code>, <code>11</code> and <code>12</code> already counted as part of the previous step.</li></ol>
+# <code>μ=2</code>: <code>[0,4,8,12]</code>
+## 2 is the maximum level for which we have at least <code>2*m</code> superblocks. We therefore keep all superblocks of that level.</p>
+# <code>μ=1</code>: <code>[6,8,10,12]</code>
+## On the next level, we keep the last <code>2*m</code> 1-superblocks (reminder than 2-superblocks are also 1-superblocks), so <code>6</code>, <code>8</code>, <code>10</code> and <code>12</code>.
+## Then, we add any 1-superblock which happened after the parent pivot <code>10</code>, which means <code>10</code> and <code>12</code> already counted as part of the previous step.
+# <code>μ=0</code> <code>[9, 10, 11, 12]</code>
+## At level 0, there’s no more compression going on so we simply keep the last <code>2*m</code> blocks of the prefix: <code>9</code>, <code>10</code>, <code>11</code> and <code>12</code>.
+## As for the previous case, we also include all blocks greater than the parent pivot <code>10</code>, which means <code>10</code>, <code>11</code> and <code>12</code> already counted as part of the previous step.
 
-The final compressed chain is obtained by merging selected blocks from all the levels (while removing duplicates) and by adding back the suffix, so: <code>[0,4,6,8,9,10,11,12,13,14,15]</code>.</p></li></ol>
+The final compressed chain is obtained by merging selected blocks from all the levels (while removing duplicates) and by adding back the suffix, so: <code>[0,4,6,8,9,10,11,12,13,14,15]</code>.</p>
 
 As mentioned earlier, the compressed chain is not uniformly compressed, but it is denser near the tip than it is near the beginning. As new blocks gets added, we expect miners to keep compressing their local chain, possibly removing some old blocks at each step. This approaches ensures that the local chain does only grow poly-logarithmically in terms of the total chain length.
 
@@ -128,7 +132,7 @@ Considering now that miners (either full nodes or light nodes leveraging NIPoPow
 
 The verifier thereby needs a function to compare the various compressed chains received from provers in order to select the best one, that is, a chain that a full node miner booting from genesis could have plausibly arrived at (the notion of longest chain is a bit different when considering compressed chains, hence the need for a specific comparison function). Once chosen, the new miner can start mining on top of the compressed chain and become itself a ''prover'' for future nodes.
 
-<syntaxhighlight lang="python">
+<pre>
 def compare(chainA, chainB):
     if not (isValidChain(chainA)):
         return chainB
@@ -139,10 +143,10 @@ def compare(chainA, chainB):
     superblocksA, lvlA, suffixA = dissolve(chainA)
     superblocksB, lvlB, suffixB = dissolve(chainB)
 
-    diff = [ μ for μ in range (0, ∞) if len(intersection(superblocksA[μ], superblocksB[μ])) &gt; 0 ]
+    diff = [ μ for μ in range (0, ∞) if len(intersection(superblocksA[μ], superblocksB[μ])) > 0 ]
 
     if len(diff) == 0:
-        if lvlA &gt; lvlB:
+        if lvlA > lvlB:
             return chainA
         else
             return chainB
@@ -150,14 +154,14 @@ def compare(chainA, chainB):
     else:
         μ = min(diff)
         clash = intersection(superblocksA[μ], superblocks[B])[-1]
-        if len(after(clash, superblocksA[μ])) &gt; len(after(clash, superblocksB[μ])):
+        if len(after(clash, superblocksA[μ])) > len(after(clash, superblocksB[μ])):
             return chainA
         else:
             return chainB
 
 def after(point, chain):
-    return [ blk for blk in chain if blk &gt;= point ]
-</syntaxhighlight>
+    return [ blk for blk in chain if blk >= point ]
+</pre>
 
 The idea is sensibly the same as the selection of normal chains based on the longest prefix, except that here, we compare superchains at specific level. The algorithm starts by finding a level at which comparing the two chains. That is, the first level from which both chains are referring to different blocks. In case there’s none, the chain with the highest superchain wins. Otherwise, we compare chains according to the longest prefix, but only after the point where they start diverging.
 
@@ -183,7 +187,7 @@ To be done:
 
 <!-- All LIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The LIP must explain how the author proposes to deal with these incompatibilities. -->
 
-This change requires a hard-fork of the current network, since it requires the addition of the interlink structure in block headers. This change is not backward compatible for it is not feasible to modify the existing chain prefix (which would require to re-do the Proof-of-Work for the ENTIRE chain). However, it is still possible to pre-calculate the interlink and a compressed version of the entire prefix pre hard-fork for bootstrapping new lightweight clients. Such prefix would be considered ''“common knowledge”'' in a similar fashion to how the genesis hash is considered.
+This change requires a hard-fork of the current network, since it requires the addition of the interlink structure in block headers. This change is not backward compatible for it is not feasible to modify the existing chain prefix (which would require to re-do the Proof-of-Work for the '''ENTIRE''' chain). However, it is still possible to pre-calculate the interlink and a compressed version of the entire prefix pre hard-fork for bootstrapping new lightweight clients. Such prefix would be considered ''“common knowledge”'' in a similar fashion to how the genesis hash is considered.
 
 = Reference implementation =
 
