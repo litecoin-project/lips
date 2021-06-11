@@ -1,0 +1,203 @@
+<pre>LIP: 4
+Layer: Consensus (hard fork)
+Title: Non-Interactive Proofs of Proof-of-Work (NIPoPoW)
+Author: Matthias Benkort &lt;matthias.benkort@iohk.io&gt;
+Comments-URI: &lt;links to wiki page for comments&gt;
+Status: Draft
+Type: Standards Track
+Created: 2021-05-06
+License: Public Domain
+</pre>
+
+= Abstract =
+
+<!-- A short (~200 word) description of the technical issue being addressed. -->
+
+Traditional Proof-of-Work (abbrev. PoW) blockchains like Litecoin force require clients to verify the entire blockchain linearly in the length of the chain. Client based on Non-Interactive Proofs of Proof-of-Work (abbrev. NIPoPow)[<nowiki/>[https://eprint.iacr.org/2021/623 1]][<nowiki/>[https://eprint.iacr.org/2017/963 2]] only requires resources logarithmic in the length of whole chain, making them much more performant in both time and space resources. To enable NIPoPow in Litecoin requires some additions in block headers to track so-called ''super block interlinks''. These interlinks allow for drastically compressing the chain down a small number of blocks sufficient to verify an entire chain prefix.
+
+This proposal explains how block interlinks should be constructed and stored, but also how blocks can be verified securely using the compressed version of the chain obtained as a result. It finally covers some of the known limitations of this approach.
+
+= Specification =
+
+<!-- Specification -- The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for any of the current Litecoin platforms. -->
+== Overview ==
+
+At its heart, NIPoPow separate blocks into '''levels'''. A level represents the number of leading <code>0</code> of a block ID (when encoded in base16), or more formally, for a block <code>B</code> and a chain difficulty target <code>T</code>.
+
+<pre>μ = level(B) = floor(log(T) - log(id(B))) </pre>
+Where <code>id(B)</code> represents the block ID of the block <code>B</code>. Note that a block of level <code>μ</code> (<code>μ &gt; 1</code>) is also of level <code>μ-1</code>. We call block of level <code>μ</code> a '''μ-superblock''' and by convention the genesis block is considered to have a level of <code>∞</code> in addition to being the root block of every levels. This creates multiple sequences of block ids, from the genesis block and onward. The higher the level, the smaller the sequence; on average each sequence will contain <code>n = L / 2^μ</code> elements, where <code>L</code> is the length of chain. That is, half of blocks are of level 1, 1/4 of the blocks are of level 2, 1/8 of level 3 etc…
+
+[[File:lip-0004/figure-1.png]]
+
+Similarly, a subchain containing all the blocks of a certain level <code>μ</code> is called is '''μ-superchain'''.
+
+== Interlink Construction ==
+
+In NIPoPow, block headers not only keep track of the previous block header hash, but also keep track of the most recent super blocks of various levels in a dedicated data-structure. We call that data-structure the block '''interlink''' which is essentially a vector with the following definition:
+
+<blockquote><code>∀i &gt; 0</code>: <code>interlink[i]</code> is the hash of the most recent block with ID smaller than <code>T / 2^i</code>.
+</blockquote>
+By convention, <code>interlink[0]</code> refers to the genesis block. For each block <code>block</code>, miners must construct the interlinks as follows (in pseudo-code):
+
+<syntaxhighlight lang="python">
+def updateInterlink(block):
+    interlink = block.interlink
+    for µ in [ 0 .. level(block) ]:
+        interlink[µ] = id(block)
+    return interlink
+</syntaxhighlight>
+The interlink must then be stored in each block header.
+
+== Chain Validation ==
+
+NIPoPoW allows for lightweight nodes to rapidly synchronize with the latest state of the blockchain without having to linearly scan the entire chain. The approach also differs from traditional SPV node clients who, despite requiring only block headers, still to process and store every headers of the chain. With NIPoPow, lightweight clients can instead maintain and validate exponentially less headers by only keeping sufficiently high-level superblocks. This is achieved in mainly two steps: compression and comparison.
+
+In the following section, we’ll be considering two parameters:
+
+* <code>m</code> as the compression parameter
+* <code>k</code> as the common prefix parameter
+
+The value chosen for <code>k</code> depends in principle on the hashing power of the system, and represents the number of blocks after which one can consider a block immutable (in such way that the suffix of the chain would be too expensive to re-calculate for an attacker). In Bitcoin, <code>k</code> is typically chosen around 6-7. We also conservatively choose <code>m = 3*k</code>
+
+=== Compression ===
+
+NIPoPow nodes only need to keep track of a fraction of the entire chain to operate. We therefore define a compression function that prunes unnecessary blocks from the chain as such:
+
+<syntaxhighlight lang="python">
+def compress(chain):
+    superblocks, _, suffix = dissolve(chain)
+    return flatten(superblocks) + suffix
+
+def dissolve(chain)
+    prefix = chain[:-k]
+    suffix = chain[-k:]
+    superblocks = []
+
+    if len(prefix) >= 2 * m:
+        # Get the highest level for which we have at least 2*m superblocks.
+        lvl = max([μ for μ in range(0, ∞) if len(superchain(μ, prefix)) > 2 * m ])
+        # Get all superblocks from that level.
+        superblocks[lvl] = superchain(lvl, prefix)
+        # Then for each level downwards
+        for μ in range(l-1, 0):
+            # Always include the last -2m super blocks for that level.
+            superblocks[μ] = superchain(μ, prefix)[-2m:]
+            # And add up all the block greater than the parent pivot
+            pivot = superchain(μ+1, prefix)[-m]
+            superblocks[μ] += [ blk for blk in superchain(μ, prefix) if b >= pivot ]
+      return superblocks, lvl, suffix
+
+    else:
+        superblocks[0] = prefix
+        return superblocks, 0, suffix
+</syntaxhighlight>
+
+This algorithm assumes the existence of a function <code>superchain</code> which computes the μ-superchain of a corresponding chain prefix, given some level <code>μ</code>. And also, a function <code>flatten</code> which flattens the list of lists of superblocks into a single list, removing duplicate blocks.
+
+Conceptually, the idea is to get only a fraction of each level, favoring more blocks when near the tip of the chain and less blocks when near the genesis point. The compression is only possible for chains that already have a certain number of blocks (at least <code>2*m</code>) for which we then try to find the highest level that has at least <code>2*m</code> blocks. Note that all blocks are at least 0-superblocks, so this is guaranteed to find at least one level with at least <code>2*m</code> blocks (if only, level 0).
+
+For example, we can represent the algorithm as follows:
+
+<pre>
+                      [:-k]                           [-k:]
+<------------------------------------------------> <--------->
+0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+O - O - O - O - O - O - O - O - O - O - O - O - O - O - O - O
+O       O       O       O       O       O       O       O
+O               O               O               O
+</pre>
+
+If we assume <code>m=2</code> for the sake of the example here.
+
+# μ=2</code>: [0,4,8,12]
+## 2 is the maximum level for which we have at least <code>2*m</code> superblocks. We therefore keep all superblocks of that level.</p></li>
+# <code>μ=1</code>: [6,8,10,12]
+## On the next level, we keep the last <code>2*m</code> 1-superblocks (reminder than 2-superblocks are also 1-superblocks), so <code>6</code>, <code>8</code>, <code>10</code> and <code>12</code>.</li>
+## Then, we add any 1-superblock which happened after the parent pivot <code>10</code>, which means <code>10</code> and <code>12</code> already counted as part of the previous step.</li></ol>
+# <code>μ=0</code> [9, 10, 11, 12]
+## At level 0, there’s no more compression going on so we simply keep the last <code>2*m</code> blocks of the prefix: <code>9</code>, <code>10</code>, <code>11</code> and <code>12</code>.</li>
+## As for the previous case, we also include all blocks greater than the parent pivot <code>10</code>, which means <code>10</code>, <code>11</code> and <code>12</code> already counted as part of the previous step.</li></ol>
+
+The final compressed chain is obtained by merging selected blocks from all the levels (while removing duplicates) and by adding back the suffix, so: <code>[0,4,6,8,9,10,11,12,13,14,15]</code>.</p></li></ol>
+
+As mentioned earlier, the compressed chain is not uniformly compressed, but it is denser near the tip than it is near the beginning. As new blocks gets added, we expect miners to keep compressing their local chain, possibly removing some old blocks at each step. This approaches ensures that the local chain does only grow poly-logarithmically in terms of the total chain length.
+
+=== Comparison ===
+
+Considering now that miners (either full nodes or light nodes leveraging NIPoPow) are computing compressed version of their chain, it should be possible for a new node (a.k.a a ''verifier'') to enter the network and perform a fast synchronization of the chain by only looking at compressed chains. Such a node is expected to gather compressed chains from various already synchronized node which we call ''provers''. We expect that at least one of the chosen prover is honest.
+
+The verifier thereby needs a function to compare the various compressed chains received from provers in order to select the best one, that is, a chain that a full node miner booting from genesis could have plausibly arrived at (the notion of longest chain is a bit different when considering compressed chains, hence the need for a specific comparison function). Once chosen, the new miner can start mining on top of the compressed chain and become itself a ''prover'' for future nodes.
+
+<syntaxhighlight lang="python">
+def compare(chainA, chainB):
+    if not (isValidChain(chainA)):
+        return chainB
+
+    if not (isValidChain(chainB)):
+        return chain A
+
+    superblocksA, lvlA, suffixA = dissolve(chainA)
+    superblocksB, lvlB, suffixB = dissolve(chainB)
+
+    diff = [ μ for μ in range (0, ∞) if len(intersection(superblocksA[μ], superblocksB[μ])) &gt; 0 ]
+
+    if len(diff) == 0:
+        if lvlA &gt; lvlB:
+            return chainA
+        else
+            return chainB
+
+    else:
+        μ = min(diff)
+        clash = intersection(superblocksA[μ], superblocks[B])[-1]
+        if len(after(clash, superblocksA[μ])) &gt; len(after(clash, superblocksB[μ])):
+            return chainA
+        else:
+            return chainB
+
+def after(point, chain):
+    return [ blk for blk in chain if blk &gt;= point ]
+</syntaxhighlight>
+
+The idea is sensibly the same as the selection of normal chains based on the longest prefix, except that here, we compare superchains at specific level. The algorithm starts by finding a level at which comparing the two chains. That is, the first level from which both chains are referring to different blocks. In case there’s none, the chain with the highest superchain wins. Otherwise, we compare chains according to the longest prefix, but only after the point where they start diverging.
+
+= Motivation =
+
+<!-- The motivation is critical for LIPs that want to change the Litecoin protocol. It should clearly explain why the existing protocol is inadequate to address the problem that the LIP solves. -->
+
+As stated in the introduction, NIPoPoW allows for drastically reducing the needs in storage and verification for light nodes. This enables so-called logarithmic mining on top of an existing chain. Note that this approach doesn’t fully exempt the network from full nodes since some are still required to keep track of the entire chain history. It however enables a whole class of lightweight clients which can benefits of similar security guarantees while preserving storage and computational resources low.
+
+Beside, the addition required to enable such mining mode is relatively succinct both in terms of changes and in terms of resulting workload for the miners.
+
+= Rationale =
+
+<!-- The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work. The rationale should provide evidence of consensus within the community and discuss important objections or concerns raised during discussion. -->
+
+To be done:
+
+* Cover briefly the security proofs for NIPoPow
+* Mention the 1/3 only adversarial resistence
+* Explain the hypothesis / trade-offs regarding the constant difficulty
+
+= Backwards compatibility =
+
+<!-- All LIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The LIP must explain how the author proposes to deal with these incompatibilities. -->
+
+This change requires a hard-fork of the current network, since it requires the addition of the interlink structure in block headers. This change is not backward compatible for it is not feasible to modify the existing chain prefix (which would require to re-do the Proof-of-Work for the ENTIRE chain). However, it is still possible to pre-calculate the interlink and a compressed version of the entire prefix pre hard-fork for bootstrapping new lightweight clients. Such prefix would be considered ''“common knowledge”'' in a similar fashion to how the genesis hash is considered.
+
+= Reference implementation =
+
+<!-- The reference implementation must be completed before any LIP is given status "Final", but it need not be completed before the LIP is accepted. It is better to finish the specification and rationale first and reach consensus on it before writing code. The final implementation must include test code and documentation appropriate for the Litecoin protocol. -->
+
+To be done.
+
+= References =
+
+# [https://eprint.iacr.org/2021/623 Mining in Logarithmic Space] by Aggelos Kiayias, Nikos Leonardos and Dionysis Zindros.
+# [https://eprint.iacr.org/2017/963 Non Interactive Proofs of Proof-of-Work] by Aggelos Kiayias, Andrew Miller, and Dionysis Zindros.
+# [http://fc16.ifca.ai/bitcoin/papers/KLS16.pdf Proofs of Proofs of Work with Sublinear Complexity] by Aggelos Kiayias, Andrew Miller, and Dionysis Zindros.
+
+= Copyright =
+
+<!-- The LIP must be explicitly licensed under acceptable copyright terms (see below). -->
+This document is placed in the public domain.
