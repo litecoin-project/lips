@@ -1,7 +1,7 @@
 <pre>LIP: 4
 Layer: Consensus (hard fork)
 Title: Non-Interactive Proofs of Proof-of-Work (NIPoPoW)
-Author: Matthias Benkort <matthias.benkort@iohk.io>;
+Author: Matthias Benkort <matthias.benkort@iohk.io>, Nikos Leonardos <nikos.leonardos@iohk.io>;
 Comments-URI: <links to wiki page for comments>;
 Status: Draft
 Type: Standards Track
@@ -177,11 +177,29 @@ Beside, the addition required to enable such mining mode is relatively succinct 
 
 <!-- The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work. The rationale should provide evidence of consensus within the community and discuss important objections or concerns raised during discussion. -->
 
-To be done:
+The proposed protocol is accompanied by a formal analysis which proves '''security''' and '''succinctness'''.
 
-* Cover briefly the security proofs for NIPoPow
-* Mention the 1/3 only adversarial resistence
-* Explain the hypothesis / trade-offs regarding the constant difficulty
+With respect to security, it is shown that an adversary with less than '''1/3''' of
+the total mining power cannot convince a verifier to adopt his own chain
+instead of an honest one. For such an accomplishment, the adversary should
+manage to orphan a certain number of honest superblocks of some level <code>μ</code> and
+simultaneously compute enough of his own. However, as proven in [<nowiki/>[https://eprint.iacr.org/2021/623 1]],
+against a 1/3-bounded adversary there will be enough honest blocks that cannot be
+orphaned by any attack. The contribution of these blocks to the given level
+<code>μ</code> is shown sufficient to overtake the corresponding adversarial blocks.
+
+Succinctness in the static setting rests on two facts. First, note that
+a NIPoPoW chain contains a constant number of blocks of each level. Second, the
+blocks of level <code>μ</code> need to cover about half of the chain that blocks of level
+<code>μ+1</code> cover. It follows that a logarithmic number of levels suffices.
+
+<blockquote>
+Note that it is possible to boost security to a 1/2-bounded adversary, by temporarily
+hiding the hash value of a block and providing a ZK proof of its validity. We
+consider this beyond the scope of the current proposal.
+</blockquote>
+
+We expect the NIPoPoW construction to be secure in the variable difficulty setting as well. The corresponding formal analysis is in preparation.
 
 = Backwards compatibility =
 
