@@ -195,6 +195,10 @@ We expect the NIPoPoW construction to be secure in the variable difficulty setti
 
 This change requires a hard-fork of the current network, since it requires the addition of the interlink structure in block headers. This change is not backward compatible for it is not feasible to modify the existing chain prefix (which would require to re-do the Proof-of-Work for the '''ENTIRE''' chain). However, it is still possible to pre-calculate the interlink and a compressed version of the entire prefix pre hard-fork for bootstrapping new lightweight clients. Such prefix would be considered ''“common knowledge”'' in a similar fashion to how the genesis hash is considered.
 
+Another alternative to a hard-fork could be to do a so-called Velvet-Fork and to have only some of the miners cooperate to compute and to store the interlink as part of coinbase transactions using <code>OP_RETURN</code> scripts. To operate a NiPoPoW chain, it is not required to have a strict interlink structure (listing exactly all the possible superblocks); it is okay to have holes, just less efficient.
+
+Note that, in the case of a Velvet fork, the size of the interlink is limited by the size of the <code>OP_RETURN</code> and it may not be possible to store interlink with too many (albeit realistic) levels. It is therefore recommended to instead manage interlinks as a Merkle tree, and only store the Merkle tree root in the coinbase transaction. The interlink as well as the compressed chain prefix can be forwarded to light clients for validation.
+
 = Reference implementation =
 
 <!-- The reference implementation must be completed before any LIP is given status "Final", but it need not be completed before the LIP is accepted. It is better to finish the specification and rationale first and reach consensus on it before writing code. The final implementation must include test code and documentation appropriate for the Litecoin protocol. -->
