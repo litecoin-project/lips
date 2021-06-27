@@ -1,0 +1,221 @@
+<pre>
+  LIP: 005
+  Layer: Peer Services
+  Title: MWEB P2P Layer
+  Author: David Burkett <davidburkett38@gmail.com>
+  Comments-Summary: No comments yet.
+  Comments-URI: https://github.com/litecoin/lips/wiki/Comments:LIP-0005
+  Status: Draft
+  Type: Standards Track
+  Created: 2020-09-29
+  License: PD
+</pre>
+
+==Abstract==
+This LIP defines new messages and serialization formats for propagation of transactions and blocks committing to MWEB data structures.
+
+==Motivation==
+In addition to defining MWEB data structures and requiring commitments in future blocks ([https://github.com/litecoin-project/lips/blob/master/lip-0003.mediawiki LIP3] - MWEB LIP), new mechanisms must be defined to allow peers to advertise support for MWEB, and to relay the MWEB data structures and request them from other peers without breaking compatibility with older nodes.
+
+==Specification==
+
+=== Serialization ===
+We can take advantage of the flag byte added as part of segwit to introduce a new data structure for holding MWEB transaction data.
+
+Setting the 0x08 bit in the flag byte indicates the inclusion of the new MWEB transaction data field.
+
+The MWEB transaction serialization format is as follows:
+
+==== CTransaction (with MWEB data): ====
+
+{| class="wikitable" style="width: auto; text-align: center; font-size: smaller; table-layout: fixed;"
+!Field Size
+!Name
+!Type
+!Description
+|-
+| 4
+| version
+| int32_t
+| Transaction data format version
+|-
+| 1
+| marker
+| char
+| Must be zero
+|-
+| 1
+| flag
+| char
+| 0x08 bit must be set for MWEB transactions
+|-
+| 1+
+| txin_count
+| compact_size
+| Number of transaction inputs
+|-
+| 41+
+| txins
+| txin[]
+| A list of one or more transaction inputs
+|-
+| 1+
+| txout_count
+| compact_size
+| Number of transaction outputs
+|-
+| 9+
+| txouts
+| txouts[]
+| A list of one or more transaction outputs
+|-
+| 1+
+| script_witnesses
+| script_witnesses[]
+| The witness structure as a serialized byte array (when 0x01 bit set in flag field)
+|-
+| 1
+| mweb_flag
+| char
+| bitvector to indicate the type of MWEB transaction
+|-
+| 168+
+| mweb_tx
+| mweb_tx
+| Included when mweb_type is 0x01 (see below table for serialization)
+|-
+| 4
+| lock_time
+| uint32_t
+| The block number or timestamp until which the transaction is locked
+|}
+
+NOTE: Currently, the only MWEB types (`mweb_flag`) supported are 0x00 (HogEx transaction) and 0x01 (MWEB transaction).
+
+==== mweb_tx: ====
+
+{| class="wikitable" style="width: auto; text-align: center; font-size: smaller; table-layout: fixed;"
+!Field Size
+!Name
+!Type
+!Description
+|-
+| 32
+| kernel_offset
+| BlindingFactor
+| raw kernel offset
+|-
+| 32
+| owner_offset
+| BlindingFactor
+| raw owner offset
+|-
+| 1+
+| input_count
+| compact_size
+| Number of MWEB inputs
+|-
+| 130+
+| mweb_inputs
+| mweb_input[]
+| A list of 0 or more MWEB inputs
+|-
+| 1+
+| output_count
+| compact_size
+| Number of MWEB outputs
+|-
+| 890+
+| mweb_outputs
+| mweb_output[]
+| A list of 0 or more MWEB outputs
+|-
+| 1+
+| kernel_count
+| compact_size
+| Number of MWEB kernels
+|-
+| 100+
+| mweb_kernels
+| mweb_kernel[]
+| A list of 1 or more MWEB kernels
+|-
+| 1+
+| sig_count
+| compact_size
+| Number of MWEB owner signatures
+|-
+| 129+
+| owner_sigs
+| mweb_owner_sig[]
+| A list of 0 or more MWEB owner signatures
+|}
+
+==== mweb_input: ====
+
+{| class="wikitable" style="width: auto; text-align: center; font-size: smaller; table-layout: fixed;"
+!Field Size
+!Name
+!Type
+!Description
+|-
+| 33
+| commit
+| Commitment (TODO: Define serialization format)
+| input commitment
+|-
+| 33
+| pubkey
+| PublicKey
+| input public key
+|-
+| 64
+| sig
+| Signature
+| input schnorr signature
+|}
+
+==== mweb_output: ====
+
+TODO: Document
+
+==== mweb_kernel: ====
+
+TODO: Document
+
+==== mweb_owner_sig: ====
+
+TODO: Document
+
+----
+
+=== Handshake ===
+A node will signal that it can provide MWEB data using the following service bit
+
+    NODE_MWEB = (1 << 24)
+	
+
+=== Sorting ===
+
+The following sorting rules shall be enforced for both transactions and blocks.
+
+* Inputs shall be in ascending order by their raw commitment value.
+* Outputs shall be in ascending order by their raw commitment value.
+* Kernels shall be sorted by net supply increase, i.e. `pegin - (fee + pegout)`, with highest increase first, then in ascending order by their raw commitment value.
+* Signed owner messages shall be in ascending order by their raw hashed value.
+
+=== Hashes ===
+Transaction hashes will be calculated exactly as before, with the exception of pure MWEB-to-MWEB transactions (no non-MWEB transaction data).
+In the case of MWEB-to-MWEB transactions, the hash of the first (see: Sorting) kernel in the transaction shall be used.
+
+=== Relay ===
+New inv types MSG_MWEB_TX (0x60000001, or (1<<29)+MSG_WITNESS_TX) and MSG_MWEB_BLOCK (0x60000002, or (1<<29)+MSG_WITNESS_BLOCK) are added, only for use in getdata.
+Inventory messages themselves still use just MSG_TX and MSG_BLOCK, similar to MSG_FILTERED_BLOCK.
+A further inv type MSG_FILTERED_MWEB_BLOCK (0x60000003, or (1<<29)+MSG_FILTERED_WITNESS_BLOCK) is reserved for future use.
+
+MSG_MWEB_TX getdata requests should use the non-witness serialized hash. The peer shall respond with a tx message, and if the MWEB data structure is nonempty, the MWEB serialization shall be used.
+
+MSG_MWEB_BLOCK requests will return a block message with the MWEB data structure included, if it exists. Transactions in the block shall not include MWEB transaction data. All MWEB transaction info will be included as part of the block's MWEB data structure.  TODO: What about HogEx flag?
+
+== Copyright ==
+This document is placed in the public domain.
