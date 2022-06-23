@@ -1,0 +1,317 @@
+<pre>
+  LIP: 004
+  Layer: Consensus (soft fork)
+  Title: One-Sided Transactions in Mimblewimble (Consensus layer)
+  Author: David Burkett <davidburkett38@gmail.com>
+  Comments-Summary: No comments yet.
+  Comments-URI: https://github.com/litecoin/lips/wiki/Comments:LIP-0004
+  Status: Draft
+  Type: Standards Track
+  Created: 2020-02-28
+  License: PD
+</pre>
+
+==Abstract==
+
+This LIP introduces a method for sending transactions on the Mimblewimble Extension Block (MW EB) without the need to build a transaction interactively with the receiving party.
+
+==Motivation==
+
+In the traditional approach to Mimblewimble, sending coins from one person to another requires the sender and receiver to interact in order to build a valid transaction. This can be a source of frustration, since it requires users to be online and listening in order to receive coins. This also makes cold storage much more difficult, and opens up additional opportunities for metadata leakage or MITM attacks.
+
+Non-interactive transactions are favorable in most situations, since private keys only need to be accessible when spending funds. They also allow for on-chain payment proofs, which is something possible for most blockchains, but not for chains using traditional Mimblewimble.
+
+==Specification==
+
+This section will detail the transaction model changes and consensus rules for implementing one-sided MW transactions. This specification builds upon the mimblewimble proposal detailed in [https://github.com/litecoin-project/lips/blob/master/lip-0003.mediawiki LIP-0003].
+
+===1 Stealth Addresses===
+
+A stealth address is a pair '''(A<sub>i</sub> = a<sub>i</sub>*G, B = b<sub>i</sub>*G)''' where '''A<sub>i</sub>''' is the scan key and '''B<sub>i</sub>''' the spend key. There's no practical limit to the number of subaddresses wallets can generate from a single seed.
+
+At the moment, no known method exists for supporting parent/child addresses.
+
+====1.1 Subaddress Generation====
+
+Unique stealth addresses should be generated deterministically from a wallet's seed using the following formula:
+
+# Generate master scan keypair ('''a''', '''A''') using HD keychain path m/1/0/100'
+# Generate master spend keypair ('''b''', '''B''') using HD keychain path m/1/0/101'
+# Choose the lowest unused address index '''i'''
+# Calculate one-time spend keypair ('''b<sub>i</sub>''', '''B<sub>i</sub>''') as:
+#; '''b<sub>i</sub> = b + HASH32(A||i||a)'''
+#; '''B<sub>i</sub> = b<sub>i</sub>*G'''
+# Calculate one-time scan keypair ('''a<sub>i</sub>''', '''A<sub>i</sub>''') as:
+#; '''a<sub>i</sub> = a*b<sub>i</sub>'''
+#; '''A<sub>i</sub> = a<sub>i</sub>*G'''
+
+===2 Transaction Structure===
+
+:: [[File:lip-0004/tx-model.png]]
+
+A transaction consists of:
+
+====2.1 Outputs====
+
+A list of outputs: tuples of the form '''<nowiki>[</nowiki>C, &pi;, v', n', K<sub>s</sub>, K<sub>o</sub>, K<sub>e</sub>, &rho;<nowiki>]</nowiki>''' associated to an output address (A<sub>i</sub>, B<sub>i</sub>) composed of:
+
+* an ephemeral key '''K<sub>s</sub> = k<sub>s</sub>*G''', chosen by the sender
+* an output public key '''K<sub>o</sub> = k<sub>o</sub>*G''' whose private key is known only by the receiver
+* A key exchange public key '''K<sub>e</sub> = s*B<sub>i</sub> = s*b<sub>i</sub>*G''', where '''s''' can be calculated by sender and receiver, but '''b<sub>i</sub>''' is known only by the receiver
+* a masked value '''v'''' which is the value '''v''' encrypted by a shared secret '''t'''
+* a masked nonce '''n'''' which is a one-time nonce '''n''' encrypted by a shared secret '''t'''
+* a coin '''C = v*H + q*G''' for its value '''v''', the opening '''q''' of the coin is shared between the sender and recipient of the coin (see section 3.1)
+* a rangeproof '''&pi;''' that attests that '''C''' is a commitment to a value '''v''' < '''v<sub>max</sub>''' and also commits to a message '''(C||v'||n'||K<sub>s</sub>||K<sub>o</sub>||K<sub>e</sub>||&rho;)'''
+* a signature '''&rho;''', valid under verification key '''K<sub>s</sub>''' and message '''(C||v'||n'||K<sub>s</sub>||K<sub>o</sub>||K<sub>e</sub>)'''
+
+Section 3.1 describes the calculation of '''n''', '''s''', '''t''', and '''q'''.
+
+====2.2 Inputs====
+
+A list of inputs: tuples of the form <nowiki>[</nowiki>'''K<sub>i</sub>''', '''C''', '''K<sub>o</sub>''', '''&sigma;'''<nowiki>]</nowiki> referencing a previously unspent output ('''C'''), composed of:
+
+* an ephemeral key '''K<sub>i</sub> = k<sub>i</sub>*G''' randomly chosen
+* a reference to a previously unspent output commitment '''C''' and its corresponding output public key '''K<sub>o</sub>''' 
+* a schnorr signature '''&sigma;''' of the message '''HASH32(C)''' under input key '''K<sub>input</sub> = K<sub>i</sub> + HASH32(K<sub>i</sub>||K<sub>o</sub>)*K<sub>o</sub>'''
+
+====2.3 Kernels====
+
+A kernel, which is composed of:
+
+:* the amount '''a''', indicating the money pegged-in as part of the transaction
+:* the fee '''f''', indicating the fee paid for the transaction
+:* the excess '''E = (&sum;C<sub>out</sub> + f*H) - (&sum;C<sub>in</sub> + x*G)''' where '''x''' is the transaction's transaction offset
+:* (optional) the stealth excess '''E' = &sum;K<sub>s</sub> + (&sum;K<sub>i</sub> - &sum;K<sub>o</sub>) - x'*G''' where '''x'''' is the transaction's stealth offset
+:* a signature '''&psi;''', valid for message '''(a||f)'''
+::* for transactions with stealth excesses, the signatures must be valid under verification key '''HASH32(E||E')*E + E''''
+::* for transactions without stealth excesses, the signatures must be valid under verification key '''E'''
+
+====2.4 Offsets====
+
+A transaction must also have 2 associated offsets(scalars), easily summed when aggregating transactions:
+
+* a transaction offset '''x*G = (&sum;C<sub>in</sub> - &sum;C<sub>out</sub>) + (f - a)*H - &sum;E'''
+* a stealth offset '''x'*G = &sum;K<sub>s</sub> + (&sum;K<sub>i</sub> - &sum;K<sub>o</sub>) - &sum;E''''
+
+===3 Transaction Creation===
+
+====3.1 Output Creation====
+
+To create an output for value '''v''' to a receiver's stealth address pair '''(A<sub>i</sub>, B<sub>i</sub>)''', the sender must:
+
+# Randomly generate the sender's keypair '''(k<sub>s</sub>, K<sub>s</sub>)'''
+# Derive the nonce '''n = HASH16(T<sub>nonce</sub>||k<sub>s</sub>)'''
+# Derive the sending key '''s = HASH32(T<sub>send</sub>||A<sub>i</sub>||B<sub>i</sub>||v||n)'''
+# Derive the shared secret '''t = HASH32(T<sub>derive</sub>||s*A<sub>i</sub>)'''
+# Compute the receiver's one-time public key '''K<sub>o</sub> = B<sub>i</sub> * HASH32(T<sub>recv</sub>||t)'''
+# Compute the key exchange public key '''K<sub>e</sub> = s*B<sub>i</sub>'''
+# Encrypt the value '''v' = v ^ HASH8(T<sub>vmask</sub>||t)'''
+# Encrypt the nonce '''n' = n ^ HASH16(T<sub>nmask</sub>||t)'''
+# Generate the signature '''&rho;''' for message '''(v'||n'||K<sub>s</sub>||K<sub>o</sub>||K<sub>e</sub>)''' using the sender's key '''k<sub>s</sub>'''
+# Compute the commitment '''C = v*H + q*G''' where '''q = SWITCH(v, HASH32(T<sub>blind</sub>||t))'''
+# Generate the rangeproof '''&pi;''', proving '''v < v<sub>max</sub>''', while also committing to the message '''(C||v'||n'||K<sub>s</sub>||K<sub>o</sub>||K<sub>e</sub>||&rho;)'''
+
+====3.2 Input Creation====
+
+For each input, a sender key is chosen at random '''k<sub>s</sub> <-<sub>$</sub> Z<sub>p</sub>'''.
+
+Using the sender key ('''k<sub>s</sub>''') and the private key ('''k<sub>o</sub>''') of the output being spent, create a Schnorr signature '''&sigma;''' of the message '''m = HASH32(C<sub>in</sub>)''' under key:
+
+: '''K<sub>input</sub> = K<sub>i</sub> + HASH32(K<sub>i</sub>||K<sub>o</sub>)*K<sub>o</sub>'''
+
+====3.3 Kernel & Transaction Offset====
+
+As with vanilla MW, the total "excess" is split between a kernel excess ('''E''') and the transaction offset ('''x''').
+
+The offset is chosen at random '''x <-<sub>$</sub> Z<sub>p</sub>''', and then the excess is calculated as:
+
+: '''E = (&sum;C<sub>out</sub> - &sum;C<sub>in</sub>) + (f - a)*H - x*G'''
+
+For most transactions, the kernel signature is just a signature of the kernel message (fee, lock height, etc.) under verification key '''E'''.
+
+Though it should be rare (section 8.3.1 for scenario), kernels can also contain a stealth excess, in which case the signature should be valid under verification key '''HASH32(E||E')*E + E''''.
+
+====3.4 Stealth Offset====
+
+The stealth offset '''x'''' is calculated by the sender as '''x' = &sum;k<sub>s</sub> + (&sum;k<sub>i</sub> - &sum;k<sub>o</sub>) - &sum;e'''' where '''E' = e'*G'''.
+
+===4 Transaction Aggregation===
+
+In the vanilla Mimblewimble protocol, the chain state can be aggregated into a single transaction with no inputs, all historical kernels, and all unspent outputs (the UTXO set). 
+
+With our proposal however, inputs are kept until they have been buried under a sufficient amount of PoW. In particular, we define a horizon height '''h''' for which all inputs & stealth excesses must be kept, and their signatures verified.
+
+To aggregate multiple transactions together, create a new transaction with the combination of all inputs, all outputs, all kernels, all stealth excesses, and calculate:
+
+* transaction offset '''x<sub>agg</sub> = &sum;x (mod p)'''
+* stealth offset '''x'<sub>agg</sub> = &sum;x' (mod p)'''
+
+===5 Transaction Verification===
+
+A transaction (or aggregated transaction) is valid iff:
+
+: (1) all input signatures are valid schnorr signatures under verification key '''K<sub>input</sub>''' of the corresponding UTXO for message '''HASH32(C)'''
+: (2) all range proofs are valid, and commit to the associated output data '''(C||v'||n'||K<sub>s</sub>||K<sub>o</sub>||K<sub>e</sub>||&rho;)'''
+: (3) all output signatures '''&rho;''' are valid under verification key '''K<sub>s</sub>''' and message '''(C||v'||n'||K<sub>s</sub>||K<sub>o</sub>||K<sub>e</sub>)'''
+: (4) all kernel signatures '''&psi;''' are valid under for message '''(a||f)'''
+:: (a) for transactions with stealth excesses, the signatures are valid under verification key '''HASH32(E||E')*E + E''''
+:: (b) for transactions without stealth excesses, the signatures are valid under verification key '''E'''
+: (5) all kernels referenced ('''&lambda;''') by stealth excesses must be present in the transaction
+: (6) values are balanced: '''(&sum;C<sub>out</sub> + (&sum;f - &sum;a)*H) - &sum;C<sub>in</sub> = &sum;E + x*G'''
+: (7) stealth excesses are balanced: '''(&sum;K<sub>s</sub> + &sum;K<sub>i</sub> - &sum;K<sub>o</sub>) = &sum;E' + x'*G'''
+: (8) all inputs reference valid UTXOs
+
+===6 Cut-Through===
+
+While in vanilla MW, outputs could be cut-through as soon as a block spends them, or for unconfirmed transactions, before ever even being included in a block, our proposal explicitly prevents this.
+
+Cut-through (pruning of spent outputs) does not occur until the spend has occured '''h''' blocks in the past (i.e. beyond the horizon). Without knowledge of '''k<sub>s</sub>''', which only the sender (output originator) knows, neither receiver nor adversarial observer is able to cut-through an output while still balancing the stealth excess equation (8).
+
+===7 Output Identification===
+
+Wallets must keep a map '''B<sub>i</sub>'''->'''i''' of all used spend pubkeys and the next few unused ones.
+
+To check if an output belongs to a wallet:
+
+# Calculate the view tag '''t[0]''' = '''HASH32(T<sub>tag</sub>||a*K<sub>e</sub>)'''
+# If the view tag '''t[0]''' does not match the view tag of the output, it does not belong to the wallet.
+# Calculate the ECDHE shared secret '''t''' = '''HASH32(T<sub>derive</sub>||a*K<sub>e</sub>)'''
+# Calculate the one-time spend pubkey: '''B<sub>i</sub>''' = '''K<sub>o</sub>''' * '''HASH32(T<sub>recv</sub>||t)<sup>-1</sup>'''
+# Lookup the index '''i''' that generates '''B<sub>i</sub>''' from the wallet's map '''B<sub>i</sub>'''->'''i'''. If not found, the output does not belong to the wallet.
+# Decrypt the value '''v''' = '''v' ^ HASH8(T<sub>vmask</sub>||t)'''
+# Verify that '''v*H + SWITCH(v, q)*G''' ?= '''C<sub>o</sub>''' where '''q = HASH32(T<sub>blind</sub>||t)'''
+# Decrypt the nonce '''n''' = '''n' ^ HASH16(T<sub>nmask</sub>||t)'''
+# Calculate the send key '''s''' = '''HASH32(T<sub>send</sub>||A<sub>i</sub>||B<sub>i</sub>||v||n)'''
+# Verify that '''K<sub>e</sub>''' ?= '''s*B<sub>i</sub>'''.
+
+If all verifications succeed, the output belongs to the wallet, and is safe to use.
+
+The spend key can be recovered by '''k<sub>o</sub>''' = '''HASH32(T<sub>recv</sub>||t)''' * '''b<sub>i</sub>'''.
+
+===8 Security===
+
+====8.1 Inflation Resistance====
+
+Our design for non-interactive transactions only adds additional validation rules to MW. It does not loosen or remove any previous rules. Therefore, the same mechanisms that protect MW from inflation continue to prevent inflation in our scheme.
+
+That is, the MW balance equation, valid signatures for all historical kernels, and valid rangeproofs for all UTXOs is still all that's required to prevent inflation.
+
+====8.2 Theft Resistance====
+
+Proving theft resistance under our design is more complicated than before. Rather than everyone choosing their own blinding factors for their outputs, the sender is now responsible for choosing for the receiver's outputs. The sender then encrypts the blinding factor into the output using an ECDH scheme.
+
+Anyone with knowledge of the receiver's subaddress '''(A<sub>i</sub>, B<sub>i</sub>)''', the value '''v''', and the nonce '''n''' is able to recover the blinding factor. Anyone without access to the nonce is already prevented from stealing an output by the existing MW validation rules.
+
+The nonce is encrypted in the output such that anyone with knowledge of the receiving wallet's private scan key '''a''' may decrypt it. Therefore, in addition to the receiver, the nonce and blinding factor of an output typically would be known by:
+
+# The sender that generated the nonce
+# Auditors with access to the receiving wallet's private view key '''a'''
+# Arbiters that were given the nonce to prove payment (section 11)
+
+To prevent those in this list from stealing coins from the rightful receiver, we must ensure that knowledge of the receiving wallet's secret spend key is required to spend an output. In particular, only those with access to subaddress spend key '''b<sub>i</sub>''' shall be able to move the coins.
+
+=====8.2.1 Spend Key=====
+
+The new stealth offset equation is the key to ensuring that only an output's receiver (i.e. knowledge of '''b<sub>i</sub>''') is able to spend the output.
+
+'''&sum;K<sub>s</sub> + &sum;(K<sub>i</sub> - K<sub>o</sub>) = &sum;E' + x'*G'''
+
+This states that the sum of the sender keys (K<sub>s</sub>) of the outputs, plus the sum of the difference between each input's pubkey and its corresponding output's pubkey (K<sub>i</sub> - K<sub>o</sub>), must equal the sum of the stealth excesses ('''E'''') plus the stealth offset times the base point G ('''x'*G''').
+
+The signature on each input proves knowledge of both K<sub>i</sub> and the K<sub>o</sub> of the output it spends. The signature on each output being created proves knowledge of K<sub>s</sub>. By proving knowledge of all private keys, rogue key attacks are prevented.
+
+While the K<sub>i</sub> of each input and the K<sub>s</sub> of each output can be set to any pubkey, knowledge of the sum of all secret keys for the K<sub>o</sub>'s is still required to make the stealth offset equation balance.
+
+=====8.2.2 Horizon Attacks=====
+
+Horizon attacks work as follows:
+
+* Alice creates a transaction containing an output for Bob.
+* Bob sends Alice the goods she purchased.
+* Several weeks (or perhaps even years) pass where Bob has not yet spent his coins.
+* Alice forces a large reorg beyond the horizon. She can then send Bob's output back to herself, since she knows the blinding factor, and the stealth balance equation and input signatures aren't validated for transactions in blocks beyond the horizon.
+
+While this attack theoretically allows you to spend coins of any age, they have to be coins that have not yet been spent by the receiver, and that the attacker knows the blinding factor for. The financial incentives provided by this attack are unlikely to be larger than those of much shorter reorgs today. For the extra cautious though, simply self-spending coins when you receive large amounts would prevent this attack, at the minimal cost of an additional kernel.
+
+====8.3 Transaction Binding====
+
+Given a valid transaction, we need to ensure the transaction inputs or outputs can not be modified or reused by a third party in any way without invalidating the whole transaction. That is, only the transaction originator (sender) has knowledge of the secrets necessary to modify or replace any of the inputs or outputs.
+
+=====8.3.1 Kernel Malleability=====
+
+If Bob were to receive an output from Alice, and spend it to Charlie in a 1-1 transaction, Alice and Charlie could work together to learn the kernel commitment's blinding factor, allowing them to replace the kernel altogether. This could allow them to modify lock height, steal part of the fee, or in the case of a peg-out kernel, change the pegout address of the coins.
+
+For any transactions where you have a change output (most transactions), or are spending at least 1 of your previous change outputs, the kernel's blinding factor is only known by you, and therefore the kernel is non-malleable. For the rare cases not spending or creating a change output though, a stealth excess can be added to the kernel to prevent its modification.
+
+By including a stealth excess in the kernel, and using it also to sign the kernel, the kernel cannot be modified without invalidating the whole transaction.
+
+=====8.3.2 Replay Attacks=====
+
+Replay attacks are not fully prevented with this LIP, but a number of techniques exist for identifying and preventing replays in the future.
+
+A wallet-level solution would be to require output messages that specify an expected block- or time-frame for confirmation. Outputs falling outside of that range shall be treated with extra caution, and can be immediately respent to prevent the possibility of replay.
+
+We also have the option to soft-fork in additional rules in the future that would enforce confirmation within a specific block or time window, and preventing duplicates in that same window. This would completely eliminate all known replay attacks.
+
+===9 Transaction Aggregation===
+
+An important property of MW is that transactions can be combined into a single aggregated transaction. This is an important component of MW's privacy, so we carefully preserve that property.
+
+; To aggregate n transactions (tx<sub>1...n</sub>) into a single aggregated transaction (tx<sub>agg</sub>):
+:* include and sort all inputs, outputs, and kernels in the new aggregated transaction.
+:* set transaction offset ('''x''') as the sum of the individual transactions' kernel offsets: '''x<sub>agg</sub> = &sum;x<sub>1...n</sub>'''
+:* set stealth offset ('''x'''') as the sum of the individual transactions' stealth offsets: '''x<sub>agg</sub>' = &sum;x'<sub>1...n</sub>'''
+
+The offsets ('''x''' and '''x'''') ensure that, once aggregated, it is computationally infeasible to determine the original transactions (tx<sub>1...n</sub>) from tx<sub>agg</sub>.
+
+===10 Privacy===
+
+There are 3 ways the Mimblewimble protocol improves privacy over transparent chains (like BTC and LTC):
+
+; '''Hidden Amounts'''
+: This property is clearly still preserved, since values remain hidden by Pedersen commitments.
+; '''No Address Reuse'''
+: By supporting stealth addresses, whose sole purpose is to prevent address reuse, we are also able to continue providing this property.
+; '''Non-interactive CoinJoins'''
+: Transactions remain aggregable (section 9). The stealth offset helps ensure that transactions can not be broken back apart once they've been aggregated.
+
+This proposal provides the same privacy benefits as traditional Mimblewimble. In fact, with interactive MW, the communication channels used to interactively build transactions are not guaranteed to be private. By removing the need for such a communication channel, we actually eliminate a source of potential privacy leakage.
+
+===11 Payment Proofs===
+
+A payment proof shall consist of the output, a merkle proof proving the output is in the TXO PMMR, the output's value '''v''', the output's nonce '''n''', and a signature proving knowledge of '''k<sub>s</sub>'''.
+
+To verify, the arbiter must:
+
+# Verify the merkle proof is valid for the output and the blockchain's TXO PMMR
+# Calculate the send key:
+#; '''s = HASH32(T<sub>send</sub>||A<sub>i</sub>||B<sub>i</sub>||v||n)'''
+# Calculate the shared secret:
+#; '''t = HASH32(T<sub>derive</sub>||s*A<sub>i</sub>)'''
+# Verify the output's commitment:
+#; '''C ?= v*H + SWITCH(v, HASH32(T<sub>blind</sub>||t))'''
+# Verify the output's public key:
+#; '''K<sub>o</sub> ?= B<sub>i</sub> + HASH32(T<sub>recv</sub>||t)*G'''
+# Verify the output's key exchange public key:
+#; '''K<sub>e</sub> ?= s*B<sub>i</sub>'''
+# Verify the encrypted value:
+#; '''v' ?= v ^ HASH8(T<sub>vmask</sub>||t)'''
+# Verify the encrypted nonce:
+#; '''n' ?= n ^ HASH8(T<sub>nmask</sub>||t)'''
+
+==Deployment==
+
+This will be activated alongside [https://github.com/litecoin-project/lips/blob/master/lip-0003.mediawiki LIP-0003].
+
+==Credits==
+
+Special thanks to Hansie Odendaal, Phyro, John Tromp, and Kurt Coolman for their valuable feedback on earlier iterations of this design.
+Thanks also to Michele Orrù, Georg Fuchsbauer, and the team at MWC for collaborating while they worked on their own [https://eprint.iacr.org/2022/265.pdf NITX scheme].
+
+==References==
+
+https://gist.github.com/DavidBurkett/32e33835b03f9101666690b7d6185203
+
+==Copyright==
+
+This document is placed in the public domain.
