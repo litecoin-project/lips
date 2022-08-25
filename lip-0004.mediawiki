@@ -305,7 +305,7 @@ This will be activated alongside [https://github.com/litecoin-project/lips/blob/
 
 ==Credits==
 
-Special thanks to Hansie Odendaal, Phyro, John Tromp, and Kurt Coolman for their valuable feedback on earlier iterations of this design.
+Special thanks to Hansie Odendaal, Phyro, John Tromp, and Kurt for their valuable feedback on earlier iterations of this design.
 Thanks also to Michele Orrù, Georg Fuchsbauer, and the team at MWC for collaborating while they worked on their own [https://eprint.iacr.org/2022/265.pdf NITX scheme].
 
 ==References==
