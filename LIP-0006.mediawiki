@@ -1,0 +1,97 @@
+<pre>
+  LIP: 006
+  Layer: Peer Services
+  Title: MWEB P2P Messages
+  Author: David Burkett <davidburkett38@gmail.com>
+  Comments-Summary: No comments yet.
+  Comments-URI: https://github.com/litecoin/lips/wiki/Comments:LIP-0007
+  Status: Draft
+  Type: Standards Track
+  Created: 2022-06-23
+  License: PD
+</pre>
+
+==Abstract==
+
+In this LIP, we define new p2p protocol messages for supporting more efficient syncing of MWEB components.
+
+==Motivation==
+
+The most popular wallets for LTC users are light clients, which don't download and validate the blockchain. Instead, they rely on full nodes to help find transactions belonging to the wallet, significantly reducing the amount of data that must be downloaded, albeit with a weaker security model.
+
+Unfortunately, the existing methods for finding a wallet's transactions cannot be applied to MWEB transactions, so a new approach is necessary.
+
+The p2p protocol messages being added in this LIP will allow light clients to add MWEB support without reducing security or forfeiting privacy gains, while only downloading near-minimal amount of data.
+
+==Specification==
+
+===New messages===
+
+====MWEBUTXOsRequest====
+A <code>getmwebutxos</code> message is introduced which can be used to request a batch of MWEB UTXOs.
+
+{|
+|Field Name||Type||Size||Encoding||Purpose
+|-
+|block_hash||Binary blob||32 bytes||The output from a double-SHA256 of the block header, as used elsewhere||The blockhash of the snapshot in time that UTXOs are requested for
+|-
+|start_index||VarInt||1-8 bytes||As used to encode unsigned values elsewhere||The leaf index of the first UTXO being requested
+|-
+|num_requested||uint16_t||2 bytes||Little Endian||The maximum number of UTXOs the peer would like in this batch
+|-
+|output_format||uint8_t||1 byte||MSB first||The requested MWEB output serialization format
+|}
+
+The supported MWEB output serialization format values are:
+# <code>FULL_UTXO(0x00)</code> - The fully serialized UTXO containing the commitment, public keys, output message, rangeproof, and signature. 
+# <code>HASH_ONLY(0x01)</code> - The blake3 hash of the UTXO.
+# <code>COMPACT_UTXO(0x02)</code> - The UTXO without the rangeproof. The blake3 hash of the rangeproof is provided, which is enough to calculate and verify the hash of the UTXO.
+
+====MWEBUTXOs====
+
+A peer can respond to <code>getmwebutxos</code> requests with a <code>mwebutxos</code> message containing:
+
+{|
+|Field Name||Type||Size||Encoding||Purpose
+|-
+|output_format||uint8_t||1 byte||MSB first||The serialization format of the UTXOs that follow (FULL_UTXO, HASH_ONLY, or COMPACT_UTXO)
+|-
+|utxos_length||CompactSize||1 or 3 bytes||As used to encode array lengths elsewhere||The number of MWEB UTXOs that follow
+|-
+|utxos||List of MWEB UTXOs||variable size*utxos_length||||The serialized MWEB UTXOs
+|-
+| - leaf_index||VarInt||1-8 bytes||As used to encode unsigned values elsewhere||Leaf index of the UTXO
+|-
+| - output||MWEBOutput, Hash, or CompactMWEBOutput||Variable size||Encoded using the format specified in the output_format field||The serialized output
+|}
+
+====HogExAndMWEBHeader====
+When a getdata request with a type field of MSG_MWEB_HEADER (0x20000008) is made using a recent block hash, peers may respond with a <code>mwebheader</code> message containing:
+
+{|
+|Field Name||Type||Size||Encoding||Purpose
+|-
+|merkle||merkleblock||variable||Encoded as defined in BIP-0037||Proves the hash of the final transaction in the block (the HogEx)
+|-
+|hogex||tx||variable||Encoded as defined in BIP-0144||Commits to the hash of the MWEB header
+|-
+|mweb_header||mwebheader||180 bytes||Encoded as defined in LIP-0003||Contains the leafset_root and output_root values necessary for validating UTXOs
+|}
+
+====MWEBLeafset====
+When a getdata request with a type field of MSG_MWEB_LEAFSET (0x20000009) is made using a recent block hash, peers may respond with a <code>mwebleafset</code> message containing:
+
+{|
+|Field Name||Type||Size||Encoding||Purpose
+|-
+|block_hash||Binary blob||32 bytes||The output from a double-SHA256 of the block header, as used elsewhere||The blockhash of the block the leafset is provided for
+|-
+|size||CompactSize||1, 3, 5, or 9 bytes||As used to encode array lengths elsewhere||The number of bytes in the serialized bitset that follows
+|-
+|leafset||Binary blob||variable||A zero-padded bitset serialized in big-endian form||Indicates the leaf indices of all unspent UTXOs
+|}
+
+
+==Copyright==
+
+This document is placed in the public domain.
