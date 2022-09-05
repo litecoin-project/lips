@@ -58,7 +58,7 @@ A peer can respond to <code>getmwebutxos</code> requests with a <code>mwebutxos<
 |-
 |utxos_length||CompactSize||1 or 3 bytes||As used to encode array lengths elsewhere||The number of MWEB UTXOs that follow
 |-
-|utxos||List of MWEB UTXOs||variable size*utxos_length||||The serialized MWEB UTXOs
+|utxos||List of MWEB UTXOs||variable size*utxos_length|| ||The serialized MWEB UTXOs
 |-
 | - leaf_index||VarInt||1-8 bytes||As used to encode unsigned values elsewhere||Leaf index of the UTXO
 |-
