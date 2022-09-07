@@ -58,11 +58,15 @@ A peer can respond to <code>getmwebutxos</code> requests with a <code>mwebutxos<
 |-
 |utxos_length||CompactSize||1 or 3 bytes||As used to encode array lengths elsewhere||The number of MWEB UTXOs that follow
 |-
-|utxos||List of MWEB UTXOs||variable size*utxos_length||leaf_index + output||The serialized MWEB UTXOs
+|utxos||List of MWEB UTXOs||variable size * utxos_length||leaf_index + output||The serialized MWEB UTXOs
 |-
 | - leaf_index||VarInt||1-8 bytes||As used to encode unsigned values elsewhere||Leaf index of the UTXO
 |-
 | - output||MWEBOutput, Hash, or CompactMWEBOutput||Variable size||Encoded using the format specified in the output_format field||The serialized output
+|-
+|parent_hashes_length||CompactSize||1 or 3 bytes||As used to encode array lengths elsewhere||The number of parent hashes that follow
+|-
+|parent_hashes||List of blake3 hashes||32 bytes * parent_hashes_length||The parent hashes necessary to verify the outputs belong to the output PMMR
 |}
 
 ====HogExAndMWEBHeader====
