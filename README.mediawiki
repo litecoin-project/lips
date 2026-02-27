@@ -26,14 +26,28 @@ Those proposing changes should consider that ultimately consent may rest with th
 | Extension Blocks
 | Andrew Yang, David Burkett, Charlie Lee
 | Standard
-| Proposed
+| Final
 |-
 | [[lip-0003.mediawiki|3]]
 | Consensus (soft fork)	
 | MimbleWimble via Extension Blocks
 | Andrew Yang, David Burkett, Charlie Lee
 | Standard
-| Proposed
+| Final
+|-
+| [[lip-0004.mediawiki|4]]
+| Consensus (soft fork)	
+| One-Sided Transactions in Mimblewimble (Consensus layer)
+| David Burkett
+| Standard
+| Final
+|-
+| [[lip-0006.mediawiki|6]]
+| P2P Services
+| MWEB P2P Messages
+| David Burkett
+| Standard
+| Final
 |}
 
 <!-- IMPORTANT!  See the instructions at the top of this page, do NOT JUST add LIPs here! -->
