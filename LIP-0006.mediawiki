@@ -4,7 +4,7 @@
   Title: MWEB P2P Messages
   Author: David Burkett <davidburkett38@gmail.com>
   Comments-Summary: No comments yet.
-  Comments-URI: https://github.com/litecoin/lips/wiki/Comments:LIP-0007
+  Comments-URI: https://github.com/litecoin/lips/wiki/Comments:LIP-0006
   Status: Draft
   Type: Standards Track
   Created: 2022-06-23
