@@ -105,8 +105,8 @@ To create an output for value '''v''' to a receiver's stealth address pair '''(A
 # Derive the shared secret '''t = HASH32(T<sub>derive</sub>||s*A<sub>i</sub>)'''
 # Compute the receiver's one-time public key '''K<sub>o</sub> = B<sub>i</sub> * HASH32(T<sub>recv</sub>||t)'''
 # Compute the key exchange public key '''K<sub>e</sub> = s*B<sub>i</sub>'''
-# Encrypt the value '''v' = v ^ HASH8(T<sub>vmask</sub>||t)'''
-# Encrypt the nonce '''n' = n ^ HASH16(T<sub>nmask</sub>||t)'''
+# Encrypt the value '''v' = v &#8853; HASH8(T<sub>vmask</sub>||t)'''
+# Encrypt the nonce '''n' = n &#8853; HASH16(T<sub>nmask</sub>||t)'''
 # Generate the signature '''&rho;''' for message '''(v'||n'||K<sub>s</sub>||K<sub>o</sub>||K<sub>e</sub>)''' using the sender's key '''k<sub>s</sub>'''
 # Compute the commitment '''C = v*H + q*G''' where '''q = SWITCH(v, HASH32(T<sub>blind</sub>||t))'''
 # Generate the rangeproof '''&pi;''', proving '''v < v<sub>max</sub>''', while also committing to the message '''(C||v'||n'||K<sub>s</sub>||K<sub>o</sub>||K<sub>e</sub>||&rho;)'''
@@ -178,9 +178,9 @@ To check if an output belongs to a wallet:
 # Calculate the ECDHE shared secret '''t''' = '''HASH32(T<sub>derive</sub>||a*K<sub>e</sub>)'''
 # Calculate the one-time spend pubkey: '''B<sub>i</sub>''' = '''K<sub>o</sub>''' * '''HASH32(T<sub>recv</sub>||t)<sup>-1</sup>'''
 # Lookup the index '''i''' that generates '''B<sub>i</sub>''' from the wallet's map '''B<sub>i</sub>'''->'''i'''. If not found, the output does not belong to the wallet.
-# Decrypt the value '''v''' = '''v' ^ HASH8(T<sub>vmask</sub>||t)'''
+# Decrypt the value '''v''' = '''v' &#8853; HASH8(T<sub>vmask</sub>||t)'''
 # Verify that '''v*H + SWITCH(v, q)*G''' ?= '''C<sub>o</sub>''' where '''q = HASH32(T<sub>blind</sub>||t)'''
-# Decrypt the nonce '''n''' = '''n' ^ HASH16(T<sub>nmask</sub>||t)'''
+# Decrypt the nonce '''n''' = '''n' &#8853; HASH16(T<sub>nmask</sub>||t)'''
 # Calculate the send key '''s''' = '''HASH32(T<sub>send</sub>||A<sub>i</sub>||B<sub>i</sub>||v||n)'''
 # Verify that '''K<sub>e</sub>''' ?= '''s*B<sub>i</sub>'''.
 
@@ -295,9 +295,9 @@ To verify, the arbiter must:
 # Verify the output's key exchange public key:
 #; '''K<sub>e</sub> ?= s*B<sub>i</sub>'''
 # Verify the encrypted value:
-#; '''v' ?= v ^ HASH8(T<sub>vmask</sub>||t)'''
+#; '''v' ?= v &#8853; HASH8(T<sub>vmask</sub>||t)'''
 # Verify the encrypted nonce:
-#; '''n' ?= n ^ HASH8(T<sub>nmask</sub>||t)'''
+#; '''n' ?= n &#8853; HASH16(T<sub>nmask</sub>||t)'''
 
 ==Deployment==
 
